@@ -16,7 +16,7 @@ import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
 import { Slider } from "@/components/ui/slider";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { formatVolume, pricing, site, volumes } from "@/lib/site";
+import { defaultVolumeIndex, formatVolume, pricing, site, volumes } from "@/lib/site";
 import { cn } from "@/lib/utils";
 
 const ease = [0.22, 1, 0.36, 1] as const;
@@ -168,7 +168,7 @@ function Facts() {
 }
 
 function Calculator() {
-  const [volIdx, setVolIdx] = useState(0);
+  const [volIdx, setVolIdx] = useState(defaultVolumeIndex);
   const [ltv, setLtv] = useState(50000);
   const [close, setClose] = useState(20);
 

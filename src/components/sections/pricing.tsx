@@ -16,7 +16,7 @@ import {
 import { AnimatedNumber } from "@/components/animated-number";
 import { Separator } from "@/components/ui/separator";
 import { Slider } from "@/components/ui/slider";
-import { formatVolume, pricing, site, volumes } from "@/lib/site";
+import { defaultVolumeIndex, formatVolume, pricing, site, volumes } from "@/lib/site";
 import { cn } from "@/lib/utils";
 
 const ease = [0.22, 1, 0.36, 1] as const;
@@ -38,7 +38,7 @@ const costAt = (item: (typeof stack)[number], perDay: number) =>
 const usd = (n: number) => "$" + Math.round(n).toLocaleString("en-US");
 
 export function Pricing() {
-  const [volIdx, setVolIdx] = useState(0);
+  const [volIdx, setVolIdx] = useState(defaultVolumeIndex);
   const perDay = volumes[volIdx];
   const price = pricing[perDay];
   const totalValue = stack.reduce((sum, item) => sum + costAt(item, perDay), 0);

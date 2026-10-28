@@ -1,7 +1,7 @@
 // The client's setup, captured during onboarding and editable from the dashboard.
 // Saved in the browser for now; in production this is stored on the backend.
 
-import { volumes } from "@/lib/site";
+import { defaultVolume, volumes } from "@/lib/site";
 
 export type Goal = "call" | "book" | "website" | "inbox";
 
@@ -102,6 +102,7 @@ export const emptySetup: Setup = {
   website: "",
   offer: "",
   dealSize: 25000,
+  dailyVolume: defaultVolume,
   icp: "",
   titles: "",
   industries: "",

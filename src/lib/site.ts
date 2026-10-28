@@ -17,6 +17,10 @@ export const site = {
 
 export const volumes = [1000, 2000, 3000, 4000, 5000] as const;
 
+// Volume the sliders start on; people can still drag down to 1,000.
+export const defaultVolume: (typeof volumes)[number] = 2000;
+export const defaultVolumeIndex = volumes.indexOf(defaultVolume);
+
 // Monthly price per daily sending volume (fully managed, done-for-you).
 export const pricing: Record<(typeof volumes)[number], number> = {
   1000: 2497,
