@@ -12,7 +12,8 @@ import { Label } from "@/components/ui/label";
 import { Slider } from "@/components/ui/slider";
 import { Textarea } from "@/components/ui/textarea";
 import { formatVolume, pricing, site, volumes } from "@/lib/site";
-import { authConfigured, currentEmail, saveSetupToAccount, signUp } from "@/lib/auth";
+import { authConfigured, currentEmail, resendConfirmation, saveSetupToAccount, signUp } from "@/lib/auth";
+import { legal } from "@/lib/legal";
 import { FormError, isEmail, MIN_PASSWORD, PasswordInput } from "@/components/auth/auth-forms";
 import { destination, destinationValid, emptySetup, goalLabel, goals, saveSetup, type Goal, type Setup } from "@/lib/setup";
 import { cn } from "@/lib/utils";
@@ -41,7 +42,7 @@ const steps: { id: StepId; title: string; sub: string }[] = [
 function isValid(id: StepId, s: Setup) {
   switch (id) {
     case "account":
-      return isEmail(s.accountEmail);
+      return isEmail(s.accountEmail) && !!s.termsAcceptedAt;
     case "business":
       return !!s.company.trim() && !!s.website.trim() && !!s.offer.trim() && s.dealSize > 0;
     case "targeting":
@@ -108,13 +109,17 @@ export function Onboarding() {
 
   const current = steps[step];
   const passwordOk = password.length >= MIN_PASSWORD && password === confirm;
-  const valid = isValid(current.id, setup) && (current.id !== "account" || !!signedInAs || passwordOk);
+  // Someone already signed in agreed to the terms when they created the account.
+  const valid = current.id === "account" ? !!signedInAs || (isValid("account", setup) && passwordOk) : isValid(current.id, setup);
 
   const next = async () => {
     if (current.id === "account" && !signedInAs) {
       setBusy(true);
       setAccountError(null);
-      const res = await signUp(setup.accountEmail.trim(), password);
+      const res = await signUp(setup.accountEmail.trim(), password, {
+        termsVersion: setup.termsVersion,
+        termsAcceptedAt: setup.termsAcceptedAt,
+      });
       setBusy(false);
       if (!res.ok) return setAccountError(res.error);
       setSignedInAs(setup.accountEmail.trim());
@@ -712,11 +717,7 @@ function Done({ setup, confirmEmail }: { setup: Setup; confirmEmail: string | nu
   ];
   return (
     <div className="glass rounded-xl p-5">
-      {confirmEmail && (
-        <p className="mb-4 rounded-md bg-yellow-300/10 px-3 py-2 text-[12px] text-yellow-100">
-          Confirm your email: we sent a link to {confirmEmail}. You&apos;ll need it to log in.
-        </p>
-      )}
+      {confirmEmail && <ConfirmBanner email={confirmEmail} />}
       <p className="text-[12px] font-medium">What happens next</p>
       <ol className="mt-3 space-y-2.5">
         {next.map((n, i) => (
@@ -748,12 +749,40 @@ function Done({ setup, confirmEmail }: { setup: Setup; confirmEmail: string | nu
 /* Payment                                                             */
 /* ------------------------------------------------------------------ */
 
-const publishableKey = process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY;
-const stripePromise = publishableKey ? loadStripe(publishableKey) : null;
 // Set only in the static design preview, which has no server to create a checkout.
 const isPreview = process.env.NEXT_PUBLIC_PREVIEW === "1";
 
+type StripeState = { status: "loading" } | { status: "ready"; stripe: ReturnType<typeof loadStripe> } | { status: "unavailable"; error: string };
+let stripeCache: ReturnType<typeof loadStripe> | null = null;
+
+// The publishable key comes from the server at request time, so key changes in
+// the host's settings apply without a rebuild.
+function useStripe(): StripeState {
+  const [state, setState] = useState<StripeState>(() =>
+    isPreview ? { status: "unavailable", error: "" } : stripeCache ? { status: "ready", stripe: stripeCache } : { status: "loading" }
+  );
+  useEffect(() => {
+    if (isPreview || stripeCache) return;
+    let cancelled = false;
+    fetch("/api/checkout/config", { cache: "no-store" })
+      .then((r) => r.json())
+      .then((data) => {
+        if (cancelled) return;
+        if (data.publishableKey) {
+          stripeCache = loadStripe(data.publishableKey);
+          setState({ status: "ready", stripe: stripeCache });
+        } else setState({ status: "unavailable", error: data.error ?? "Payments aren't set up yet." });
+      })
+      .catch(() => !cancelled && setState({ status: "unavailable", error: "Couldn't reach checkout. Check your connection and refresh." }));
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+  return state;
+}
+
 function PaymentStep({ setup, onPaid }: { setup: Setup; onPaid: () => void }) {
+  const stripeState = useStripe();
   return (
     <>
       <div className="flex items-center justify-between text-[12px]">
@@ -765,15 +794,30 @@ function PaymentStep({ setup, onPaid }: { setup: Setup; onPaid: () => void }) {
           <span className="text-muted-foreground">/mo</span>
         </span>
       </div>
-      {stripePromise ? (
+      {stripeState.status === "loading" ? (
+        <div className="glass-inset flex min-h-[200px] items-center justify-center gap-2 rounded-lg text-[12px] text-muted-foreground">
+          <Loader2 className="size-3.5 animate-spin" /> Loading secure checkout…
+        </div>
+      ) : stripeState.status === "ready" ? (
         // Remount when the plan changes so a fresh session is created for the new price.
-        <Checkout key={setup.dailyVolume} setup={setup} onPaid={onPaid} />
+        <>
+          <Checkout key={setup.dailyVolume} stripe={stripeState.stripe} setup={setup} onPaid={onPaid} />
+          <p className="text-center text-[11px] leading-relaxed text-muted-foreground">
+            Billed monthly until you cancel. Fees are non-refundable. By subscribing you agree to the{" "}
+            <a href={site.termsUrl} target="_blank" rel="noreferrer" className="text-white/80 underline underline-offset-4 hover:text-white">
+              Terms of Service
+            </a>
+            .
+          </p>
+        </>
       ) : (
         <div className="glass-inset rounded-lg px-4 py-5 text-center">
           <Lock className="mx-auto size-4 text-white/50" />
-          <p className="mt-2 text-[12px] text-white/85">Payment isn&apos;t connected here yet.</p>
+          <p className="mt-2 text-[12px] text-white/85">{isPreview ? "Payment isn't connected in this preview." : stripeState.error}</p>
           <p className="mt-1 text-[11px] text-muted-foreground">
-            Add your Stripe keys to the site&apos;s environment and the secure checkout appears in this spot.
+            {isPreview
+              ? "On the live site, the secure Stripe checkout appears in this spot."
+              : `Your answers are saved. Email ${legal.supportEmail} and we'll get you set up.`}
           </p>
           {isPreview && (
             <button
@@ -789,7 +833,7 @@ function PaymentStep({ setup, onPaid }: { setup: Setup; onPaid: () => void }) {
   );
 }
 
-function Checkout({ setup, onPaid }: { setup: Setup; onPaid: () => void }) {
+function Checkout({ stripe, setup, onPaid }: { stripe: ReturnType<typeof loadStripe>; setup: Setup; onPaid: () => void }) {
   const [error, setError] = useState<string | null>(null);
   const [verifying, setVerifying] = useState(false);
   const sessionId = useRef<string | null>(null);
@@ -836,7 +880,7 @@ function Checkout({ setup, onPaid }: { setup: Setup; onPaid: () => void }) {
     <div className="space-y-3">
       {error && <p className="rounded-md bg-red-400/10 px-3 py-2 text-[12px] text-red-200">{error}</p>}
       <div className="relative min-h-[420px] overflow-hidden rounded-lg">
-        <EmbeddedCheckoutProvider stripe={stripePromise} options={options}>
+        <EmbeddedCheckoutProvider stripe={stripe} options={options}>
           <EmbeddedCheckout />
         </EmbeddedCheckoutProvider>
         {verifying && (
@@ -901,6 +945,35 @@ function AccountStep({
         <PasswordInput id="confirm" value={confirm} onChange={setConfirm} autoComplete="new-password" />
         {mismatch && <p className="text-[11px] text-red-300">Passwords don&apos;t match.</p>}
       </Field>
+      <label htmlFor="terms" className="flex cursor-pointer items-start gap-2.5 text-[12px] leading-relaxed text-white/80">
+        <input
+          id="terms"
+          type="checkbox"
+          checked={!!setup.termsAcceptedAt}
+          onChange={(e) => {
+            set("termsAcceptedAt", e.target.checked ? new Date().toISOString() : "");
+            set("termsVersion", e.target.checked ? legal.termsVersion : "");
+          }}
+          className="peer sr-only"
+        />
+        <span
+          aria-hidden
+          className="mt-0.5 flex size-4 shrink-0 items-center justify-center rounded border border-white/25 bg-white/[0.03] text-zinc-950 transition-colors peer-checked:border-yellow-300 peer-checked:bg-yellow-300 peer-focus-visible:ring-2 peer-focus-visible:ring-yellow-300/40"
+        >
+          {setup.termsAcceptedAt && <Check className="size-3" />}
+        </span>
+        <span>
+          I agree to the{" "}
+          <a href={site.termsUrl} target="_blank" rel="noreferrer" className="text-white underline underline-offset-4 hover:text-yellow-100">
+            Terms of Service
+          </a>{" "}
+          and{" "}
+          <a href={site.privacyUrl} target="_blank" rel="noreferrer" className="text-white underline underline-offset-4 hover:text-yellow-100">
+            Privacy Policy
+          </a>
+          .
+        </span>
+      </label>
       <FormError error={error} />
       <p className="text-[11px] text-muted-foreground">
         Already have an account?{" "}
@@ -910,5 +983,25 @@ function AccountStep({
         {!authConfigured && " · Preview: accounts are kept in this browser only."}
       </p>
     </>
+  );
+}
+
+function ConfirmBanner({ email }: { email: string }) {
+  const [state, setState] = useState<"idle" | "sending" | "sent" | "failed">("idle");
+  const resend = async () => {
+    setState("sending");
+    setState((await resendConfirmation(email)).ok ? "sent" : "failed");
+  };
+  return (
+    <div className="mb-4 rounded-md bg-yellow-300/10 px-3 py-2 text-[12px] text-yellow-100">
+      Confirm your email: we sent a link to {email}. You&apos;ll need it to log in.{" "}
+      {state === "sent" ? (
+        <span className="text-yellow-100/80">Sent again. Check your spam folder too.</span>
+      ) : (
+        <button onClick={resend} disabled={state === "sending"} className="underline underline-offset-4 hover:text-white cursor-pointer">
+          {state === "sending" ? "Sending…" : state === "failed" ? "Try resending again" : "Resend it"}
+        </button>
+      )}
+    </div>
   );
 }

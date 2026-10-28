@@ -30,12 +30,20 @@ const friendly = (message: string) => {
 
 const absolute = (path: string) => new URL(page(path), window.location.href).toString();
 
-export async function signUp(email: string, password: string): Promise<AuthResult> {
+/** `consent` records which Terms/Privacy version the person agreed to, and when. */
+export async function signUp(
+  email: string,
+  password: string,
+  consent: { termsVersion: string; termsAcceptedAt: string }
+): Promise<AuthResult> {
   if (!authConfigured) return preview.signUp(email, password);
   const { data, error } = await supabase().auth.signUp({
     email,
     password,
-    options: { emailRedirectTo: absolute("/dashboard") },
+    options: {
+      emailRedirectTo: absolute("/dashboard"),
+      data: { terms_version: consent.termsVersion, terms_accepted_at: consent.termsAcceptedAt },
+    },
   });
   if (error) return { ok: false, error: friendly(error.message) };
   // With email confirmation on, an existing address comes back as a user with no identities.
@@ -48,6 +56,13 @@ export async function signUp(email: string, password: string): Promise<AuthResul
 export async function signIn(email: string, password: string): Promise<AuthResult> {
   if (!authConfigured) return preview.signIn(email, password);
   const { error } = await supabase().auth.signInWithPassword({ email, password });
+  return error ? { ok: false, error: friendly(error.message) } : { ok: true };
+}
+
+/** Sends the sign-up confirmation email again. */
+export async function resendConfirmation(email: string): Promise<AuthResult> {
+  if (!authConfigured) return { ok: true };
+  const { error } = await supabase().auth.resend({ type: "signup", email, options: { emailRedirectTo: absolute("/dashboard") } });
   return error ? { ok: false, error: friendly(error.message) } : { ok: true };
 }
 

@@ -1,4 +1,5 @@
 import { Logo } from "@/components/logo";
+import { site } from "@/lib/site";
 
 export function Footer() {
   return (
@@ -8,8 +9,8 @@ export function Footer() {
           <Logo />
           <p>© {new Date().getFullYear()} Praz. Done-for-you outbound for high-ticket B2B.</p>
           <div className="flex gap-4">
-            <a href="#" className="hover:text-white">Privacy</a>
-            <a href="#" className="hover:text-white">Terms</a>
+            <a href={site.privacyUrl} className="hover:text-white">Privacy</a>
+            <a href={site.termsUrl} className="hover:text-white">Terms</a>
           </div>
         </div>
       </div>

@@ -31,6 +31,8 @@ export type Setup = {
   landingPage: string;
   dailyVolume: (typeof volumes)[number];
   approval: "approve" | "operator";
+  termsVersion: string;
+  termsAcceptedAt: string;
 };
 
 export const goals: { value: Goal; title: string; example: string }[] = [
@@ -89,6 +91,8 @@ export const sampleSetup: Setup = {
   landingPage: "northwind.com/demo",
   dailyVolume: 1000,
   approval: "approve",
+  termsVersion: "",
+  termsAcceptedAt: "",
 };
 
 export const emptySetup: Setup = {

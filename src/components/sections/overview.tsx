@@ -31,7 +31,7 @@ const ASSUME = { reply: 0.01, positive: 0.05, meeting: 0.4, days: 22 };
 const facts = [
   { k: "$10k+", v: "Minimum LTV" },
   { k: "1k–5k", v: "Emails per day" },
-  { k: "< 7 days", v: "To launch" },
+  { k: "< 3 days", v: "To launch" },
   { k: "100%", v: "Done for you" },
   { k: "$0", v: "Setup fees" },
 ];

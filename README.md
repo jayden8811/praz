@@ -19,7 +19,7 @@ Onboarding ends with an embedded Stripe Checkout for the chosen plan. To turn it
 1. Copy `.env.example` to `.env.local` and add your Stripe keys (sandbox keys to start).
 2. Run the app as a server (`npm run build && npm start`, or deploy to a Node host such as Vercel), since `/api/checkout` creates the session.
 
-The five monthly prices live in `stripePrices` in `src/lib/site.ts`. They are sandbox prices; create matching live prices and swap the IDs in when you're ready to charge.
+Each plan's price is found by its Stripe lookup key (`praz_dfy_1000` … `praz_dfy_5000`). The sandbox prices already have them; when you create live prices, give them the same lookup keys. If no matching price exists, checkout uses an inline price with the same amount. The publishable key can be set as `STRIPE_PUBLISHABLE_KEY` (read at request time, no rebuild needed) or `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY`.
 
 ## Accounts (Supabase Auth)
 
@@ -28,6 +28,8 @@ Clients create their login (email + password) on the first onboarding step, log 
 1. Create a Supabase project and keep **Email** sign-in enabled (Authentication → Providers).
 2. Under Authentication → URL Configuration, set the Site URL to your domain and add `https://yourdomain.com/reset-password` and `https://yourdomain.com/dashboard` as redirect URLs.
 3. Add `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` to `.env.local` (see `.env.example`).
+
+4. Connect your own email sender under Authentication → Emails → SMTP Settings (for example Resend, Postmark or SendGrid, sending from an address on praz.ai). Supabase's built-in sender only delivers to your own team members' addresses and a few emails per hour, so without this step clients never receive confirmation or password-reset emails.
 
 Until those keys are set, the site uses a stand-in that keeps accounts in the visitor's browser only, so the flow can be previewed. The client's onboarding answers are saved to their account so they reappear when they log in on another device.
 

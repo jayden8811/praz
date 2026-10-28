@@ -6,7 +6,7 @@ import { ArrowRight, Eye, EyeOff, Loader2, MailCheck } from "lucide-react";
 import { LogoMark } from "@/components/logo";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { authConfigured, currentEmail, onPasswordRecovery, sendPasswordReset, signIn, updatePassword } from "@/lib/auth";
+import { authConfigured, currentEmail, onPasswordRecovery, resendConfirmation, sendPasswordReset, signIn, updatePassword } from "@/lib/auth";
 import { page, site } from "@/lib/site";
 import { cn } from "@/lib/utils";
 
@@ -113,11 +113,24 @@ export function LoginForm() {
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [resent, setResent] = useState<"idle" | "sending" | "sent">("idle");
+  const unconfirmed = !!error && /confirm your email/i.test(error);
+
+  const resend = async () => {
+    setResent("sending");
+    const res = await resendConfirmation(email.trim());
+    if (res.ok) setResent("sent");
+    else {
+      setError(res.error);
+      setResent("idle");
+    }
+  };
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     setBusy(true);
     setError(null);
+    setResent("idle");
     const res = await signIn(email.trim(), password);
     if (res.ok) window.location.href = site.dashboardUrl;
     else {
@@ -154,6 +167,20 @@ export function LoginForm() {
           <PasswordInput id="login-password" value={password} onChange={setPassword} autoComplete="current-password" />
         </div>
         <FormError error={error} />
+        {unconfirmed && (
+          <p className="text-[12px] text-muted-foreground">
+            {resent === "sent" ? (
+              <>Sent. Check your inbox and spam folder for an email from Praz.</>
+            ) : (
+              <>
+                Didn&apos;t get it?{" "}
+                <button type="button" onClick={resend} disabled={resent === "sending"} className="text-white underline underline-offset-4 hover:text-yellow-100 cursor-pointer">
+                  {resent === "sending" ? "Sending…" : "Resend confirmation email"}
+                </button>
+              </>
+            )}
+          </p>
+        )}
         <Submit busy={busy} disabled={!isEmail(email) || !password}>
           Log in <ArrowRight className="size-3.5 transition-transform group-hover:translate-x-0.5" />
         </Submit>
