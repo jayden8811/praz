@@ -6,7 +6,7 @@ export const page = (path: string) =>
 
 export const site = {
   name: "Praz",
-  bookUrl: "#book",
+  bookUrl: page("/book"),
   homeUrl: page("/"),
   onboardingUrl: page("/onboarding"),
   loginUrl: page("/login"),

@@ -30,3 +30,7 @@ Clients create their login (email + password) on the first onboarding step, log 
 3. Add `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` to `.env.local` (see `.env.example`).
 
 Until those keys are set, the site uses a stand-in that keeps accounts in the visitor's browser only, so the flow can be previewed. The client's onboarding answers are saved to their account so they reappear when they log in on another device.
+
+## Booking calls (Cal.com)
+
+"Book a Call" opens `/book`, which shows the next 7 days, open times from the Cal.com event `praz-kjqqtj/15min`, and a short details form. The page talks to `/api/booking`, which calls Cal.com's API v2 from the server. Public event types work without a key; to add one, set `CAL_API_KEY` in `.env.local` and in your host's environment variables (it is only read on the server). To use a different event, change `cal` in `src/lib/booking.ts`.
