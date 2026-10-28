@@ -2,16 +2,18 @@ import { cn } from "@/lib/utils";
 
 export function LogoMark({ className }: { className?: string }) {
   return (
-    <svg viewBox="0 0 24 24" className={cn("size-5", className)} aria-hidden>
-      <rect x="2" y="2" width="20" height="20" rx="6" className="fill-white" />
-      <path
-        d="M8.5 17V7h4.2a3.3 3.3 0 0 1 0 6.6H8.5"
-        className="fill-none stroke-zinc-950"
-        strokeWidth="2.2"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-      <circle cx="16.5" cy="16.5" r="1.6" className="fill-yellow-400" />
+    <svg viewBox="264 252 806 775" className={cn("size-5 fill-current", className)} aria-hidden>
+      <rect x="580" y="262" width="174" height="177" rx="42" />
+      <rect x="395" y="452" width="171" height="173" rx="41" />
+      <rect x="580" y="452" width="175" height="176" rx="42" />
+      <rect x="768" y="452" width="172" height="173" rx="41" />
+      <rect x="274" y="629" width="138" height="138" rx="33" />
+      <rect x="922" y="629" width="138" height="138" rx="33" />
+      <rect x="580" y="640" width="174" height="166" rx="40" />
+      <rect x="429" y="790" width="151" height="143" rx="34" />
+      <rect x="755" y="790" width="151" height="143" rx="34" />
+      <rect x="350" y="928" width="91" height="89" rx="21" />
+      <rect x="892" y="928" width="90" height="89" rx="21" />
     </svg>
   );
 }

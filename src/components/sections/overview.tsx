@@ -8,7 +8,6 @@ import {
   Info,
   Lock,
   MessageCircle,
-  Send,
   Tag,
 } from "lucide-react";
 import { LogoMark } from "@/components/logo";
@@ -48,7 +47,7 @@ export function Overview() {
   return (
     <section className="relative flex min-h-svh flex-col">
       <TopBar />
-      <div className="mx-auto flex w-full max-w-[680px] flex-1 flex-col px-4 pb-10 pt-3 md:pt-4">
+      <div className="mx-auto flex w-full max-w-[680px] flex-1 flex-col px-4 pb-12 pt-12 md:pt-16">
         <Identity />
         <Facts />
         <Calculator />
@@ -109,14 +108,14 @@ function Identity() {
         initial={{ opacity: 0, scale: 0.9 }}
         animate={{ opacity: 1, scale: 1 }}
         transition={{ duration: 0.8, ease }}
-        className="glass flex size-14 items-center justify-center rounded-full"
+        className="glass flex size-[72px] items-center justify-center rounded-full"
       >
-        <LogoMark className="size-7" />
+        <LogoMark className="size-10 text-white" />
       </motion.div>
 
       <motion.h1
         {...fade(0.1)}
-        className="mt-3 flex flex-wrap items-center justify-center gap-x-[0.3em] text-[22px] font-medium tracking-[-0.02em] md:text-[24px]"
+        className="mt-5 flex flex-wrap items-center justify-center gap-x-[0.3em] text-[22px] font-medium tracking-[-0.02em] md:text-[24px]"
       >
         <span>We send</span>
         <span className="relative inline-flex h-[1.25em] w-[3.1em] items-center justify-center overflow-hidden rounded-[0.25em] bg-yellow-300/20 px-[0.2em] tabular-nums">
@@ -134,7 +133,6 @@ function Identity() {
           </AnimatePresence>
         </span>
         <span>emails per day for you</span>
-        <Send className="size-[0.8em] -rotate-12 text-white/50" />
       </motion.h1>
 
       <motion.p {...fade(0.18)} className="mt-1.5 flex items-center gap-2 text-[12px] text-muted-foreground">
@@ -150,7 +148,7 @@ function Facts() {
   return (
     <motion.dl
       {...fade(0.26)}
-      className="glass mt-5 grid grid-cols-3 rounded-xl py-1 sm:grid-cols-5"
+      className="glass mt-8 grid grid-cols-3 rounded-xl py-1 sm:grid-cols-5"
     >
       {facts.map((f, i) => (
         <div
@@ -184,12 +182,12 @@ function Calculator() {
   const roi = ((revenue - cost) / cost) * 100;
 
   return (
-    <motion.div {...fade(0.34)} id="roi" className="mt-5">
+    <motion.div {...fade(0.34)} id="roi" className="mt-10">
       <h2 className="text-[13px] font-medium">ROI calculator</h2>
 
-      <div className="glass mt-2.5 grid overflow-hidden rounded-xl sm:grid-cols-2">
+      <div className="glass mt-3 grid overflow-hidden rounded-xl sm:grid-cols-2">
         {/* inputs */}
-        <div className="space-y-4 p-4">
+        <div className="space-y-5 p-5">
           <p className="text-[12px] font-medium text-white/90">Your numbers</p>
 
           <Field
@@ -276,7 +274,7 @@ function Calculator() {
         </div>
 
         {/* results */}
-        <div className="flex flex-col border-t border-white/[0.06] bg-white/[0.015] p-4 sm:border-t-0 sm:border-l">
+        <div className="flex flex-col border-t border-white/[0.06] bg-white/[0.015] p-5 sm:border-t-0 sm:border-l">
           <p className="text-[12px] font-medium text-white/90">Projected monthly results</p>
 
           <div className="mt-3 grid grid-cols-2 gap-1.5">
