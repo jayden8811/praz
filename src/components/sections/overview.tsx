@@ -108,9 +108,9 @@ function Identity() {
         initial={{ opacity: 0, scale: 0.9 }}
         animate={{ opacity: 1, scale: 1 }}
         transition={{ duration: 0.8, ease }}
-        className="glass flex size-[72px] items-center justify-center rounded-full"
+        className="flex items-center justify-center"
       >
-        <LogoMark className="size-10 text-white" />
+        <LogoMark className="size-14 text-white" />
       </motion.div>
 
       <motion.h1
