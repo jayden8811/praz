@@ -349,7 +349,7 @@ function TargetingStep({ setup, set }: StepProps) {
         label="Describe your ideal customer"
         value={setup.icp}
         onChange={(v) => set("icp", v)}
-        placeholder="CFOs and VPs of Finance at US B2B SaaS companies doing $10M–$50M ARR that raised a Series B or later."
+        placeholder="Decision makers of Finance at US B2B SaaS companies doing $10M–$50M ARR that raised a Series B or later."
       />
       <div className="grid gap-4 sm:grid-cols-2">
         <TextField id="titles" label="Job titles" optional value={setup.titles} onChange={(v) => set("titles", v)} placeholder="CFO, VP Finance" />
@@ -357,14 +357,6 @@ function TargetingStep({ setup, set }: StepProps) {
         <TextField id="size" label="Company size" optional value={setup.companySize} onChange={(v) => set("companySize", v)} placeholder="50–250 employees" />
         <TextField id="locations" label="Locations" optional value={setup.locations} onChange={(v) => set("locations", v)} placeholder="United States" />
       </div>
-      <AreaField
-        id="exclusions"
-        label="Who should we never contact?"
-        optional
-        value={setup.exclusions}
-        onChange={(v) => set("exclusions", v)}
-        placeholder="Current customers, competitors or partners. Domains, one per line."
-      />
     </>
   );
 }
@@ -616,7 +608,7 @@ function ReviewStep({ setup, edit }: { setup: Setup; edit: (step: number) => voi
     setup.goal === "call" ? setup.phone : setup.goal === "book" ? setup.calendar : setup.email;
   const groups: { step: number; title: string; rows: [string, string][] }[] = [
     { step: 0, title: "Business", rows: [["Company", setup.company], ["Website", setup.website], ["Deal size", usd(setup.dealSize)]] },
-    { step: 1, title: "Targeting", rows: [["Ideal customer", setup.icp], ["Excluded", setup.exclusions || "None"]] },
+    { step: 1, title: "Targeting", rows: [["Ideal customer", setup.icp]] },
     { step: 2, title: "Offer", rows: [["Problem", setup.problem], ["Offer", setup.cta]] },
     { step: 3, title: "Sender", rows: [["From", [setup.senderName, setup.senderTitle].filter(Boolean).join(", ")], ["Address", setup.address]] },
     { step: 4, title: "Goal", rows: [["Goal", goalLabel[setup.goal]], ["Send to", destination]] },

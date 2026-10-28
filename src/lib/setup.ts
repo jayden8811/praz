@@ -15,7 +15,6 @@ export type Setup = {
   industries: string;
   companySize: string;
   locations: string;
-  exclusions: string;
   problem: string;
   proof: string;
   cta: string;
@@ -66,7 +65,6 @@ export const sampleSetup: Setup = {
   industries: "B2B SaaS",
   companySize: "50–250 employees",
   locations: "United States",
-  exclusions: "",
   problem: "Finance teams that can't keep up with board reporting after a Series B.",
   proof: "Helped 40+ SaaS companies close their books in 5 days instead of 20.",
   cta: "A free 20-minute finance stack review.",
@@ -94,7 +92,6 @@ export const emptySetup: Setup = {
   industries: "",
   companySize: "",
   locations: "",
-  exclusions: "",
   problem: "",
   proof: "",
   cta: "",
