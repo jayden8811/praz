@@ -7,6 +7,7 @@ import {
   CalendarDays,
   Globe,
   Inbox,
+  Link,
   LogOut,
   Mail,
   Pencil,
@@ -25,7 +26,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { calls, days, meetings, operator, positiveReplies, totals, type Call, type Day } from "@/lib/dashboard-data";
-import { goalLabel, loadSetup, sampleSetup, saveSetup, type Goal, type Setup } from "@/lib/setup";
+import { destinationValid, goalLabel, loadSetup, sampleSetup, saveSetup, type Goal, type Setup } from "@/lib/setup";
 import { pricing } from "@/lib/site";
 import { cn } from "@/lib/utils";
 
@@ -62,6 +63,8 @@ export function Dashboard() {
   };
 
   const goal = setup.goal;
+  // Calls and meetings are tracked outcomes; website and inbox goals end at the positive reply.
+  const tracked = goal === "call" || goal === "book";
   const price = pricing[setup.dailyVolume];
   const t = useMemo(() => totals(days.slice(-range)), [range]);
   const cost = price * (range / 30);
@@ -132,10 +135,10 @@ export function Dashboard() {
           <Activity goal={goal} />
         </motion.div>
 
-        <motion.div {...fade(0.42)} className={cn("mt-10 grid gap-8", goal !== "inbox" && "sm:grid-cols-2")}>
+        <motion.div {...fade(0.42)} className={cn("mt-10 grid gap-8", tracked && "sm:grid-cols-2")}>
           <section>
-            <SectionTitle aside={goal === "inbox" ? `forwarded to ${setup.email}` : undefined}>Latest positive replies</SectionTitle>
-            <ul className={cn("mt-2 grid gap-1.5", goal === "inbox" && "sm:grid-cols-2")}>
+            <SectionTitle aside={goal === "inbox" ? `forwarded to ${setup.email}` : goal === "website" ? `sent to ${setup.landingPage}` : undefined}>Latest positive replies</SectionTitle>
+            <ul className={cn("mt-2 grid gap-1.5", !tracked && "sm:grid-cols-2")}>
               {positiveReplies.map((r) => (
                 <li key={r.name} className="glass-inset rounded-lg px-3 py-2">
                   <div className="flex items-center gap-2 text-[12px]">
@@ -215,6 +218,7 @@ export function Dashboard() {
               <Row icon={Target} label="Goal" value={goalLabel[goal]} />
               {goal === "call" && <Row icon={Phone} label="Forwarding number" value={setup.phone} />}
               {goal === "book" && <Row icon={CalendarDays} label="Booking link" value={setup.calendar} />}
+              {goal === "website" && <Row icon={Link} label="Website page" value={setup.landingPage} />}
               {goal === "inbox" && <Row icon={Mail} label="Forwarding email" value={setup.email} />}
               <Row icon={Inbox} label="Daily volume" value={`${int(setup.dailyVolume)}/day · ${usd(price)}/mo`} />
               <Row icon={UserRound} label="Your operator" value={operator.name} />
@@ -293,7 +297,8 @@ type Metric = "replies" | "positive" | "outcome";
 
 function Activity({ goal }: { goal: Goal }) {
   const [metric, setMetric] = useState<Metric>("positive");
-  const shown: Metric = goal === "inbox" && metric === "outcome" ? "positive" : metric;
+  const tracked = goal === "call" || goal === "book";
+  const shown: Metric = !tracked && metric === "outcome" ? "positive" : metric;
   const outcome = goal === "call" ? "calls" : "meetings";
   const key: keyof Day = shown === "outcome" ? outcome : shown;
   const label = shown === "outcome" ? outcome : shown === "positive" ? "positive replies" : "replies";
@@ -322,7 +327,7 @@ function Activity({ goal }: { goal: Goal }) {
     { value: "replies", label: "Replies" },
     { value: "positive", label: "Positive" },
   ];
-  if (goal !== "inbox") options.push({ value: "outcome", label: goal === "call" ? "Calls" : "Meetings" });
+  if (tracked) options.push({ value: "outcome", label: goal === "call" ? "Calls" : "Meetings" });
 
   return (
     <section>
@@ -382,10 +387,7 @@ function EditSetup({
   }, [open, setup]);
 
   const set = <K extends keyof Setup>(key: K, value: Setup[K]) => setDraft((d) => ({ ...d, [key]: value }));
-  const digits = draft.phone.replace(/\D/g, "").length;
-  const valid =
-    draft.icp.trim().length >= 10 &&
-    (draft.goal === "call" ? digits >= 10 : draft.goal === "book" ? draft.calendar.trim().length > 4 : /\S+@\S+\.\S+/.test(draft.email));
+  const valid = draft.icp.trim().length >= 10 && destinationValid(draft);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>

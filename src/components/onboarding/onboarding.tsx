@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
-import { ArrowLeft, ArrowRight, ArrowUpRight, CalendarDays, Check, Inbox, Pencil, Phone } from "lucide-react";
+import { ArrowLeft, ArrowRight, ArrowUpRight, CalendarDays, Check, Globe, Inbox, Pencil, Phone } from "lucide-react";
 import { LogoMark } from "@/components/logo";
 import { AnimatedNumber } from "@/components/animated-number";
 import { Input } from "@/components/ui/input";
@@ -10,7 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Slider } from "@/components/ui/slider";
 import { Textarea } from "@/components/ui/textarea";
 import { formatVolume, pricing, site, volumes } from "@/lib/site";
-import { emptySetup, goalLabel, goals, saveSetup, type Goal, type Setup } from "@/lib/setup";
+import { destination, destinationValid, emptySetup, goalLabel, goals, saveSetup, type Goal, type Setup } from "@/lib/setup";
 import { cn } from "@/lib/utils";
 
 const ease = [0.22, 1, 0.36, 1] as const;
@@ -18,7 +18,6 @@ const DRAFT_KEY = "praz:onboarding-draft";
 const MIN_DEAL = 10000;
 
 const usd = (n: number) => "$" + Math.round(n).toLocaleString("en-US");
-const digits = (s: string) => s.replace(/\D/g, "").length;
 
 type StepId = "business" | "targeting" | "offer" | "sender" | "goal" | "plan" | "review";
 
@@ -43,9 +42,7 @@ function isValid(id: StepId, s: Setup) {
     case "sender":
       return !!s.senderName.trim() && !!s.address.trim();
     case "goal":
-      if (s.goal === "call") return digits(s.phone) >= 10;
-      if (s.goal === "book") return s.calendar.trim().length > 4;
-      return /\S+@\S+\.\S+/.test(s.email);
+      return destinationValid(s);
     default:
       return true;
   }
@@ -422,6 +419,7 @@ function SenderStep({ setup, set }: StepProps) {
 const goalIcons: Record<Goal, React.ComponentType<{ className?: string }>> = {
   call: Phone,
   book: CalendarDays,
+  website: Globe,
   inbox: Inbox,
 };
 
@@ -509,6 +507,16 @@ export function GoalDetails({ setup, set }: StepProps) {
             onChange={(v) => set("calendar", v)}
             placeholder="calendly.com/you/intro"
             hint="Calendly, Cal.com, HubSpot or any scheduling link."
+          />
+        )}
+        {setup.goal === "website" && (
+          <TextField
+            id="landingPage"
+            label="Page to send buyers to"
+            value={setup.landingPage}
+            onChange={(v) => set("landingPage", v)}
+            placeholder={setup.website ? `${setup.website}/demo` : "yoursite.com/demo"}
+            hint="A pricing, demo or case study page works best. We add tracking so you can see visits in your analytics."
           />
         )}
         {setup.goal === "inbox" && (
@@ -604,14 +612,12 @@ function PlanStep({ setup, set }: StepProps) {
 }
 
 function ReviewStep({ setup, edit }: { setup: Setup; edit: (step: number) => void }) {
-  const destination =
-    setup.goal === "call" ? setup.phone : setup.goal === "book" ? setup.calendar : setup.email;
   const groups: { step: number; title: string; rows: [string, string][] }[] = [
     { step: 0, title: "Business", rows: [["Company", setup.company], ["Website", setup.website], ["Deal size", usd(setup.dealSize)]] },
     { step: 1, title: "Targeting", rows: [["Ideal customer", setup.icp]] },
     { step: 2, title: "Offer", rows: [["Problem", setup.problem], ["Offer", setup.cta]] },
     { step: 3, title: "Sender", rows: [["From", [setup.senderName, setup.senderTitle].filter(Boolean).join(", ")], ["Address", setup.address]] },
-    { step: 4, title: "Goal", rows: [["Goal", goalLabel[setup.goal]], ["Send to", destination]] },
+    { step: 4, title: "Goal", rows: [["Goal", goalLabel[setup.goal]], ["Send to", destination(setup)]] },
     {
       step: 5,
       title: "Plan",

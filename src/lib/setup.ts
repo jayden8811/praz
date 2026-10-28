@@ -3,7 +3,7 @@
 
 import { volumes } from "@/lib/site";
 
-export type Goal = "call" | "book" | "inbox";
+export type Goal = "call" | "book" | "website" | "inbox";
 
 export type Setup = {
   company: string;
@@ -27,6 +27,7 @@ export type Setup = {
   hours: string;
   calendar: string;
   email: string;
+  landingPage: string;
   dailyVolume: (typeof volumes)[number];
   approval: "approve" | "operator";
 };
@@ -43,6 +44,11 @@ export const goals: { value: Goal; title: string; example: string }[] = [
     example: "Interested buyers pick a time on your calendar link.",
   },
   {
+    value: "website",
+    title: "Send to my website",
+    example: "Interested buyers get a link to a page on your site, like pricing, a demo or a case study.",
+  },
+  {
     value: "inbox",
     title: "Reply to my inbox",
     example: "We forward every positive reply to your email so you can follow up.",
@@ -52,6 +58,7 @@ export const goals: { value: Goal; title: string; example: string }[] = [
 export const goalLabel: Record<Goal, string> = {
   call: "Calls to your phone",
   book: "Booked calls",
+  website: "Visits to your website",
   inbox: "Replies to your inbox",
 };
 
@@ -77,6 +84,7 @@ export const sampleSetup: Setup = {
   hours: "Mon–Fri, 9am–6pm PT",
   calendar: "cal.com/northwind/intro",
   email: "jordan@northwind.com",
+  landingPage: "northwind.com/demo",
   dailyVolume: 1000,
   approval: "approve",
 };
@@ -103,7 +111,26 @@ export const emptySetup: Setup = {
   hours: "",
   calendar: "",
   email: "",
+  landingPage: "",
 };
+
+// Where interested buyers are sent for the chosen goal, and whether it's filled in.
+export function destination(s: Setup) {
+  return { call: s.phone, book: s.calendar, website: s.landingPage, inbox: s.email }[s.goal];
+}
+
+export function destinationValid(s: Setup) {
+  switch (s.goal) {
+    case "call":
+      return s.phone.replace(/\D/g, "").length >= 10;
+    case "book":
+      return s.calendar.trim().length > 4;
+    case "website":
+      return /\S+\.\S+/.test(s.landingPage);
+    case "inbox":
+      return /\S+@\S+\.\S+/.test(s.email);
+  }
+}
 
 const KEY = "praz:setup";
 
