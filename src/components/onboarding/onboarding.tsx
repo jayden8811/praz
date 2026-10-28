@@ -1,15 +1,17 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { loadStripe } from "@stripe/stripe-js";
+import { EmbeddedCheckout, EmbeddedCheckoutProvider } from "@stripe/react-stripe-js";
 import { AnimatePresence, motion } from "motion/react";
-import { ArrowLeft, ArrowRight, ArrowUpRight, CalendarDays, Check, Globe, Inbox, Pencil, Phone } from "lucide-react";
+import { ArrowLeft, ArrowRight, CalendarDays, Check, Globe, Inbox, Loader2, Lock, Pencil, Phone } from "lucide-react";
 import { LogoMark } from "@/components/logo";
 import { AnimatedNumber } from "@/components/animated-number";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Slider } from "@/components/ui/slider";
 import { Textarea } from "@/components/ui/textarea";
-import { formatVolume, pricing, site, volumes } from "@/lib/site";
+import { formatVolume, pricing, volumes } from "@/lib/site";
 import { destination, destinationValid, emptySetup, goalLabel, goals, saveSetup, type Goal, type Setup } from "@/lib/setup";
 import { cn } from "@/lib/utils";
 
@@ -19,7 +21,7 @@ const MIN_DEAL = 10000;
 
 const usd = (n: number) => "$" + Math.round(n).toLocaleString("en-US");
 
-type StepId = "business" | "targeting" | "offer" | "sender" | "goal" | "plan" | "review";
+type StepId = "business" | "targeting" | "offer" | "sender" | "goal" | "plan" | "review" | "payment";
 
 const steps: { id: StepId; title: string; sub: string }[] = [
   { id: "business", title: "Tell us about your business", sub: "So we can position you correctly." },
@@ -28,7 +30,8 @@ const steps: { id: StepId; title: string; sub: string }[] = [
   { id: "sender", title: "Who are emails sent from?", sub: "We set up the domains and inboxes for you." },
   { id: "goal", title: "What happens when someone's interested?", sub: "Pick where we send interested buyers." },
   { id: "plan", title: "Choose your volume", sub: "You can change this anytime from your dashboard." },
-  { id: "review", title: "Review and launch", sub: "Check everything before your operator starts building." },
+  { id: "review", title: "Review your setup", sub: "Check everything before your operator starts building." },
+  { id: "payment", title: "Start your subscription", sub: "Secure checkout by Stripe. Cancel anytime." },
 ];
 
 function isValid(id: StepId, s: Setup) {
@@ -169,6 +172,7 @@ export function Onboarding() {
                   {current.id === "goal" && <GoalStep setup={setup} set={set} />}
                   {current.id === "plan" && <PlanStep setup={setup} set={set} />}
                   {current.id === "review" && <ReviewStep setup={setup} edit={go} />}
+                  {current.id === "payment" && <PaymentStep setup={setup} onPaid={finish} />}
                 </div>
               )}
             </motion.div>
@@ -184,20 +188,14 @@ export function Onboarding() {
             >
               <ArrowLeft className="size-3.5" /> Back
             </button>
-            {current.id === "review" ? (
-              <button
-                onClick={finish}
-                className="group flex h-9 items-center gap-1.5 rounded-md bg-white px-4 text-[12px] font-medium text-zinc-950 transition-all hover:bg-white/90 active:scale-[0.98] cursor-pointer"
-              >
-                Launch my campaign <ArrowRight className="size-3.5 transition-transform group-hover:translate-x-0.5" />
-              </button>
-            ) : (
+            {current.id !== "payment" && (
               <button
                 onClick={() => go(step + 1)}
                 disabled={!valid}
                 className="group flex h-9 items-center gap-1.5 rounded-md bg-white px-4 text-[12px] font-medium text-zinc-950 transition-all hover:bg-white/90 active:scale-[0.98] disabled:cursor-not-allowed disabled:bg-white/15 disabled:text-white/40 cursor-pointer"
               >
-                Continue <ArrowRight className="size-3.5 transition-transform group-hover:translate-x-0.5" />
+                {current.id === "review" ? "Continue to payment" : "Continue"}
+                <ArrowRight className="size-3.5 transition-transform group-hover:translate-x-0.5" />
               </button>
             )}
           </div>
@@ -680,19 +678,116 @@ function Done({ setup }: { setup: Setup }) {
           </motion.li>
         ))}
       </ol>
-      <div className="mt-5 grid grid-cols-2 gap-1.5">
-        <a
-          href={site.checkoutUrl}
-          className="group flex h-9 items-center justify-center gap-1.5 rounded-md bg-white text-[12px] font-medium text-zinc-950 transition-all hover:bg-white/90 active:scale-[0.98]"
-        >
-          Go to checkout <ArrowUpRight className="size-3.5" />
-        </a>
-        <a
-          href="/dashboard"
-          className="flex h-9 items-center justify-center rounded-md border border-white/10 bg-white/[0.04] text-[12px] font-medium text-yellow-100 transition-colors hover:border-yellow-300/25 hover:bg-white/[0.07]"
-        >
-          Open my dashboard
-        </a>
+      <a
+        href="/dashboard"
+        className="group mt-5 flex h-9 items-center justify-center gap-1.5 rounded-md bg-white text-[12px] font-medium text-zinc-950 transition-all hover:bg-white/90 active:scale-[0.98]"
+      >
+        Open my dashboard <ArrowRight className="size-3.5 transition-transform group-hover:translate-x-0.5" />
+      </a>
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* Payment                                                             */
+/* ------------------------------------------------------------------ */
+
+const publishableKey = process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY;
+const stripePromise = publishableKey ? loadStripe(publishableKey) : null;
+// Set only in the static design preview, which has no server to create a checkout.
+const isPreview = process.env.NEXT_PUBLIC_PREVIEW === "1";
+
+function PaymentStep({ setup, onPaid }: { setup: Setup; onPaid: () => void }) {
+  return (
+    <>
+      <div className="flex items-center justify-between text-[12px]">
+        <span className="text-muted-foreground">
+          Done-for-you outbound · <span className="tabular-nums text-white">{setup.dailyVolume.toLocaleString("en-US")}/day</span>
+        </span>
+        <span className="tabular-nums">
+          <span className="font-medium text-white">{usd(pricing[setup.dailyVolume])}</span>
+          <span className="text-muted-foreground">/mo</span>
+        </span>
+      </div>
+      {stripePromise ? (
+        // Remount when the plan changes so a fresh session is created for the new price.
+        <Checkout key={setup.dailyVolume} setup={setup} onPaid={onPaid} />
+      ) : (
+        <div className="glass-inset rounded-lg px-4 py-5 text-center">
+          <Lock className="mx-auto size-4 text-white/50" />
+          <p className="mt-2 text-[12px] text-white/85">Payment isn&apos;t connected here yet.</p>
+          <p className="mt-1 text-[11px] text-muted-foreground">
+            Add your Stripe keys to the site&apos;s environment and the secure checkout appears in this spot.
+          </p>
+          {isPreview && (
+            <button
+              onClick={onPaid}
+              className="mt-4 h-8 rounded-md border border-white/10 bg-white/[0.04] px-3 text-[12px] text-yellow-100 transition-colors hover:border-yellow-300/25 hover:bg-white/[0.07] cursor-pointer"
+            >
+              Skip payment (preview only)
+            </button>
+          )}
+        </div>
+      )}
+    </>
+  );
+}
+
+function Checkout({ setup, onPaid }: { setup: Setup; onPaid: () => void }) {
+  const [error, setError] = useState<string | null>(null);
+  const [verifying, setVerifying] = useState(false);
+  const sessionId = useRef<string | null>(null);
+  // Stripe doesn't allow its callbacks to change after mounting, so read the latest values through refs.
+  const setupRef = useRef(setup);
+  setupRef.current = setup;
+  const onPaidRef = useRef(onPaid);
+  onPaidRef.current = onPaid;
+
+  const fetchClientSecret = useCallback(async () => {
+    const res = await fetch("/api/checkout", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(setupRef.current),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok || !data.clientSecret) {
+      const message = data.error ?? "Couldn't start checkout. Please refresh and try again.";
+      setError(message);
+      throw new Error(message);
+    }
+    sessionId.current = data.sessionId;
+    return data.clientSecret as string;
+  }, []);
+
+  // Stripe calls this when payment succeeds; confirm with the server before moving on.
+  const onComplete = useCallback(async () => {
+    setVerifying(true);
+    try {
+      const res = await fetch(`/api/checkout?session_id=${encodeURIComponent(sessionId.current ?? "")}`);
+      const data = await res.json();
+      if (data.status === "complete") onPaidRef.current();
+      else setError("We couldn't confirm your payment yet. Refresh in a moment, or message us if you were charged.");
+    } catch {
+      setError("We couldn't confirm your payment yet. Refresh in a moment, or message us if you were charged.");
+    } finally {
+      setVerifying(false);
+    }
+  }, []);
+
+  const options = useMemo(() => ({ fetchClientSecret, onComplete }), [fetchClientSecret, onComplete]);
+
+  return (
+    <div className="space-y-3">
+      {error && <p className="rounded-md bg-red-400/10 px-3 py-2 text-[12px] text-red-200">{error}</p>}
+      <div className="relative min-h-[420px] overflow-hidden rounded-lg">
+        <EmbeddedCheckoutProvider stripe={stripePromise} options={options}>
+          <EmbeddedCheckout />
+        </EmbeddedCheckoutProvider>
+        {verifying && (
+          <div className="absolute inset-0 flex items-center justify-center gap-2 bg-zinc-950/70 text-[12px] backdrop-blur-sm">
+            <Loader2 className="size-3.5 animate-spin" /> Confirming payment…
+          </div>
+        )}
       </div>
     </div>
   );

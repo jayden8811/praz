@@ -17,5 +17,15 @@ export const pricing: Record<(typeof volumes)[number], number> = {
   5000: 7997,
 };
 
+// Stripe price for each plan (monthly subscription). These are sandbox (test
+// mode) prices; swap in the live-mode price IDs when you start charging.
+export const stripePrices: Record<(typeof volumes)[number], string> = {
+  1000: "price_1UVPfKRd50FYwzw3lx5t9pVc",
+  2000: "price_1UVPfMRd50FYwzw39BxvYQYv",
+  3000: "price_1UVPfPRd50FYwzw3nUtMXuSn",
+  4000: "price_1UVPfRRd50FYwzw39qNrsWVd",
+  5000: "price_1UVPfURd50FYwzw30oRT6JTf",
+};
+
 export const formatVolume = (v: number) =>
   v >= 1000 ? `${v / 1000}k` : String(v);
