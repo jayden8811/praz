@@ -183,7 +183,7 @@ function Calculator() {
 
   return (
     <motion.div {...fade(0.34)} id="roi" className="mt-10">
-      <h2 className="text-[13px] font-medium">ROI calculator</h2>
+      <h2 className="text-center text-[13px] font-medium">ROI calculator</h2>
 
       <div className="glass mt-3 grid overflow-hidden rounded-xl sm:grid-cols-2">
         {/* inputs */}
