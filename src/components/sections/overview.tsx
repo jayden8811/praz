@@ -280,7 +280,7 @@ function Calculator() {
           <div className="mt-3 grid grid-cols-2 gap-1.5">
             <Stat label="Total replies" value={replies} />
             <Stat label="Positive replies" value={positive} accent />
-            <Stat label="Meetings booked" value={meetings} />
+            <Stat label="Meetings booked" value={meetings} decimals />
             <Stat label="Deals closed" value={deals} decimals />
           </div>
 
