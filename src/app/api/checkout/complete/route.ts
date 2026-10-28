@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { describeSetup, notifyTeam } from "@/lib/notify";
 import { keyProblem, stripe } from "@/lib/stripe-server";
+import { admin, logEvent, userByEmail } from "@/lib/supabase-admin";
 
 export const dynamic = "force-dynamic";
 
@@ -18,6 +19,18 @@ export async function POST(req: Request) {
     if (subId) {
       const sub = await stripe().subscriptions.retrieve(subId);
       if (sub.metadata?.team_notified !== "1") {
+        const email = session.customer_details?.email ?? body.setup?.accountEmail ?? null;
+        const user = email ? await userByEmail(email).catch(() => null) : null;
+        await logEvent({
+          userId: user?.id,
+          email,
+          type: "subscribed",
+          detail: { subscription: subId, amount: (session.amount_total ?? 0) / 100, volume: sub.metadata?.daily_volume, setup: body.setup ?? null },
+        });
+        // Keep the full onboarding answers on the account so they show in the owner suite.
+        if (user && body.setup && !user.user_metadata?.setup) {
+          await admin().auth.admin.updateUserById(user.id, { user_metadata: { ...user.user_metadata, setup: body.setup } });
+        }
         const sent = await notifyTeam({
           subject: `New client: ${session.customer_details?.email ?? body.setup?.accountEmail ?? subId}`,
           text: `A new subscription started.\nSubscription: ${subId}\nAmount: $${((session.amount_total ?? 0) / 100).toLocaleString("en-US")}/mo\n\n${describeSetup(body.setup ?? {})}`,

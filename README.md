@@ -49,3 +49,13 @@ Subscriptions are matched to logins by email, so the portal doesn't allow changi
 ## Team notifications
 
 With `RESEND_API_KEY` set, the team inbox (`contact@praz.ai`) receives: each new client's full onboarding answers after payment, setup edits, plan changes, and messages sent from the dashboard (reply-to is the client).
+
+## Owner suite
+
+`/owner` is the private control panel: every client's onboarding answers, plan and status history (upgrades, downgrades, cancellations, failed payments), editors for the numbers, replies, calls and meetings shown on their dashboard, a message thread with each client, all client messages, and upcoming Cal.com calls. Only emails listed in `OWNER_EMAILS` get in; everyone else gets a 403 from the API.
+
+Setup:
+1. Run `supabase/schema.sql` once in Supabase → SQL Editor.
+2. Set `SUPABASE_SECRET_KEY`, `OWNER_EMAILS` and `CAL_API_KEY` in your host's environment variables.
+3. In Stripe, add a webhook to `https://<your domain>/api/stripe/webhook` for `customer.subscription.updated`, `customer.subscription.deleted` and `invoice.payment_failed`, and set its signing secret as `STRIPE_WEBHOOK_SECRET`.
+4. Redeploy.

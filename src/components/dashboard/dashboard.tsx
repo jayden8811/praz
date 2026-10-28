@@ -68,6 +68,34 @@ type Subscription = {
   pendingUpdate: boolean;
 };
 
+type LiveData = {
+  stats: (Omit<Day, "date"> & { day: string })[];
+  replies: { id: string; name: string; title: string | null; company: string | null; message: string; received_at: string }[];
+  calls: { id: string; from_number: string; location: string | null; called_at: string; duration_seconds: number | null; status: Call["status"] }[];
+  meetings: { id: string; name: string; company: string | null; starts_at: string }[];
+  settings: { operator_name: string | null; operator_note: string | null; campaign_live: boolean } | null;
+};
+
+const ago = (iso: string) => {
+  const mins = Math.round((Date.now() - new Date(iso).getTime()) / 60_000);
+  if (mins < 60) return `${Math.max(1, mins)}m ago`;
+  if (mins < 1440) return `${Math.round(mins / 60)}h ago`;
+  if (mins < 2880) return "Yesterday";
+  return new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric" });
+};
+const when = (iso: string) =>
+  new Date(iso).toLocaleString("en-US", { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+const duration = (sec: number | null) => (sec == null ? "—" : `${Math.floor(sec / 60)}m ${String(sec % 60).padStart(2, "0")}s`);
+
+/** The six-month calendar with whatever days the owner has filled in. */
+function mergeStats(rows: LiveData["stats"]): Day[] {
+  const byDay = new Map(rows.map((r) => [r.day, r]));
+  return emptyDays().map((d) => {
+    const r = byDay.get(d.date);
+    return r ? { date: d.date, sent: r.sent, replies: r.replies, positive: r.positive, calls: r.calls, answered: r.answered, meetings: r.meetings } : d;
+  });
+}
+
 const sampleSubscription: Subscription = {
   id: "sub_sample",
   status: "active",
@@ -86,6 +114,7 @@ export function Dashboard() {
   const [editing, setEditing] = useState(false);
   const [account, setAccount] = useState<string | null>(null);
   const [sub, setSub] = useState<Subscription | null | "loading">(live ? "loading" : sampleSubscription);
+  const [data, setData] = useState<LiveData | null>(null);
 
   const loadPlan = useCallback(async () => {
     if (!live) return;
@@ -114,6 +143,12 @@ export function Dashboard() {
       if (saved) setSetup(live && email ? { ...saved, accountEmail: email } : saved);
       else if (live && email) setSetup({ ...emptySetup, accountEmail: email });
       loadPlan();
+      if (live) {
+        authedFetch("/api/dashboard")
+          .then((r) => (r.ok ? r.json() : null))
+          .then((d) => d && setData(d))
+          .catch(() => {});
+      }
     })();
   }, [loadPlan]);
 
@@ -130,7 +165,7 @@ export function Dashboard() {
   // Calls and meetings are tracked outcomes; website and inbox goals end at the positive reply.
   const tracked = goal === "call" || goal === "book";
   const price = plan?.amount ?? pricing[volume];
-  const series = useMemo(() => (live ? emptyDays() : sampleDays), []);
+  const series = useMemo(() => (live ? mergeStats(data?.stats ?? []) : sampleDays), [data]);
   const t = useMemo(() => totals(series.slice(-range)), [series, range]);
   const cost = price * (range / 30);
   const hasData = t.sent > 0;
@@ -153,11 +188,11 @@ export function Dashboard() {
       ? { label: "Payment issue · update your card", dot: "bg-red-400", ping: false }
       : plan.cancelAtPeriodEnd
         ? { label: `Ends ${plan.currentPeriodEnd ? date(plan.currentPeriodEnd) : "soon"}`, dot: "bg-white/40", ping: false }
-        : hasData
+        : hasData || data?.settings?.campaign_live
           ? { label: `Campaign live · ${int(volume)}/day`, dot: "bg-yellow-300", ping: true }
           : { label: `Setting up · ${int(volume)}/day`, dot: "bg-yellow-300", ping: true };
 
-  const operatorName = live ? "your operator" : operator.name;
+  const operatorName = live ? data?.settings?.operator_name || "your operator" : operator.name;
 
   return (
     <div className="relative flex min-h-svh flex-col">
@@ -185,7 +220,7 @@ export function Dashboard() {
           </motion.p>
         </div>
 
-        {live && !hasData && plan && (
+        {live && !hasData && !data?.settings?.campaign_live && plan && (
           <motion.div {...fade(0.22)} className="glass-inset mt-8 rounded-xl px-4 py-3 text-[12px] leading-relaxed text-white/80">
             <span className="font-medium text-white">Your campaign is being built.</span> We&apos;re sourcing your lead list, setting up and
             warming your inboxes, and writing your sequences. Results show up here as soon as sending starts, usually within 3 days.
@@ -235,17 +270,20 @@ export function Dashboard() {
             <SectionTitle aside={goal === "inbox" ? `forwarded to ${setup.email}` : goal === "website" ? `sent to ${setup.landingPage}` : undefined}>
               Latest positive replies
             </SectionTitle>
-            {live ? (
+            {live && !data?.replies.length ? (
               <Empty>Interested replies appear here the moment they come in.</Empty>
             ) : (
               <ul className={cn("mt-2 grid gap-1.5", !tracked && "sm:grid-cols-2")}>
-                {positiveReplies.map((r) => (
-                  <li key={r.name} className="glass-inset rounded-lg px-3 py-2">
+                {(live
+                  ? data!.replies.map((r) => ({ key: r.id, name: r.name, title: r.title ?? "", company: r.company ?? "", message: r.message, when: ago(r.received_at) }))
+                  : positiveReplies.map((r) => ({ key: r.name, ...r }))
+                ).map((r) => (
+                  <li key={r.key} className="glass-inset rounded-lg px-3 py-2">
                     <div className="flex items-center gap-2 text-[12px]">
                       <span className="flex size-5 shrink-0 items-center justify-center rounded-md bg-white/[0.06] text-[9px] font-medium">{r.name[0]}</span>
                       <span className="truncate font-medium">{r.name}</span>
                       <span className="truncate text-[11px] text-muted-foreground">
-                        {r.title} · {r.company}
+                        {[r.title, r.company].filter(Boolean).join(" · ")}
                       </span>
                       <span className="ml-auto shrink-0 text-[10px] text-muted-foreground">{r.when}</span>
                     </div>
@@ -259,17 +297,20 @@ export function Dashboard() {
           {goal === "call" && (
             <section>
               <SectionTitle aside="via CallRail">Tracked calls</SectionTitle>
-              {live ? (
+              {live && !data?.calls.length ? (
                 <Empty>Calls from interested buyers to {setup.phone || "your number"} are logged here.</Empty>
               ) : (
                 <>
                   <dl className="mt-2">
-                    {calls.map((c) => (
+                    {(live
+                      ? data!.calls.map((c) => ({ from: c.from_number, location: c.location ?? "", when: when(c.called_at), duration: duration(c.duration_seconds), status: c.status, key: c.id }))
+                      : calls.map((c) => ({ ...c, key: c.from }))
+                    ).map((c) => (
                       <Row
-                        key={c.from}
+                        key={c.key}
                         icon={PhoneIncoming}
                         label={c.from}
-                        sub={`${c.location} · ${c.when}`}
+                        sub={[c.location, c.when].filter(Boolean).join(" · ")}
                         value={
                           <span className="flex items-center gap-2">
                             <span className="text-muted-foreground">{c.duration}</span>
@@ -288,13 +329,16 @@ export function Dashboard() {
           {goal === "book" && (
             <section>
               <SectionTitle aside={setup.calendar}>Upcoming meetings</SectionTitle>
-              {live ? (
+              {live && !data?.meetings.length ? (
                 <Empty>Meetings buyers book on your calendar show up here.</Empty>
               ) : (
                 <>
                   <dl className="mt-2">
-                    {meetings.map((m) => (
-                      <Row key={m.name} icon={CalendarCheck} label={m.name} sub={m.company} value={<span className="text-muted-foreground">{m.when}</span>} />
+                    {(live
+                      ? data!.meetings.map((m) => ({ key: m.id, name: m.name, company: m.company ?? "", when: when(m.starts_at) }))
+                      : meetings.map((m) => ({ key: m.name, ...m }))
+                    ).map((m) => (
+                      <Row key={m.key} icon={CalendarCheck} label={m.name} sub={m.company} value={<span className="text-muted-foreground">{m.when}</span>} />
                     ))}
                   </dl>
                   <Summary label="Booked this period" value={int(t.meetings)} />
@@ -333,7 +377,7 @@ export function Dashboard() {
               {goal === "book" && <Row icon={CalendarDays} label="Booking link" value={setup.calendar || "—"} />}
               {goal === "website" && <Row icon={Link} label="Website page" value={setup.landingPage || "—"} />}
               {goal === "inbox" && <Row icon={Mail} label="Forwarding email" value={setup.email || "—"} />}
-              <Row icon={UserRound} label="Your operator" value={live ? "Assigned at kickoff" : operator.name} />
+              <Row icon={UserRound} label="Your operator" value={live ? data?.settings?.operator_name || "Assigned at kickoff" : operator.name} />
             </dl>
             <div className="glass-inset mt-2 rounded-lg px-3 py-2">
               <p className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
@@ -361,7 +405,7 @@ export function Dashboard() {
         </motion.div>
 
         <motion.div {...fade(0.58)} className="mt-10">
-          <OperatorThread operatorName={operatorName} />
+          <OperatorThread operatorName={operatorName} note={live ? data?.settings?.operator_note ?? null : operator.note} />
         </motion.div>
       </div>
 
@@ -798,13 +842,24 @@ function EditSetup({
   );
 }
 
-function OperatorThread({ operatorName }: { operatorName: string }) {
+function OperatorThread({ operatorName, note }: { operatorName: string; note: string | null }) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const stamp = (iso: string) => new Date(iso).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
 
   useEffect(() => {
+    if (live) {
+      // The real thread, including your operator's replies.
+      authedFetch("/api/messages")
+        .then((r) => (r.ok ? r.json() : { messages: [] }))
+        .then((d: { messages: { sender: string; body: string; created_at: string }[] }) =>
+          setMessages(d.messages.map((m) => ({ from: m.sender === "operator" ? "operator" : "you", text: m.body, when: stamp(m.created_at) })))
+        )
+        .catch(() => {});
+      return;
+    }
     try {
       const raw = localStorage.getItem(MESSAGES_KEY);
       if (raw) setMessages(JSON.parse(raw));
@@ -813,10 +868,8 @@ function OperatorThread({ operatorName }: { operatorName: string }) {
     }
   }, []);
 
-  const greeting = live
-    ? "Hi! I'm your Praz operator. Message me here any time with questions or changes. I'll reply by email."
-    : operator.note;
-  const thread: Message[] = [{ from: "operator", text: greeting, when: live ? "Welcome" : "This week" }, ...messages];
+  const greeting = note || "Hi! I'm your Praz operator. Message me here any time with questions or changes, and I'll reply here and by email.";
+  const thread: Message[] = [{ from: "operator", text: greeting, when: live ? (note ? "Latest update" : "Welcome") : "This week" }, ...messages];
 
   const send = async () => {
     const body = text.trim();
@@ -825,17 +878,18 @@ function OperatorThread({ operatorName }: { operatorName: string }) {
     if (live) {
       setSending(true);
       try {
-        const res = await authedFetch("/api/notify", { method: "POST", body: JSON.stringify({ kind: "message", text: body }) });
+        const res = await authedFetch("/api/messages", { method: "POST", body: JSON.stringify({ body }) });
         if (!res.ok) throw new Error();
+        const { message } = await res.json();
+        setMessages((m) => [...m, { from: "you", text: message.body, when: stamp(message.created_at) }]);
+        setText("");
       } catch {
         setError(`Couldn't send. Please email ${legal.supportEmail} instead.`);
-        setSending(false);
-        return;
       }
       setSending(false);
+      return;
     }
-    const when = new Date().toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
-    const next = [...messages, { from: "you" as const, text: body, when }];
+    const next = [...messages, { from: "you" as const, text: body, when: stamp(new Date().toISOString()) }];
     setMessages(next);
     setText("");
     try {
@@ -847,7 +901,7 @@ function OperatorThread({ operatorName }: { operatorName: string }) {
 
   return (
     <section>
-      <SectionTitle aside={live ? "replies come to your email" : "usually replies within a few hours"}>
+      <SectionTitle aside={live ? "replies show here and in your email" : "usually replies within a few hours"}>
         Message {operatorName}
       </SectionTitle>
       <div className="glass mt-3 rounded-xl p-4">
@@ -864,7 +918,7 @@ function OperatorThread({ operatorName }: { operatorName: string }) {
                 <div className={cn("max-w-[85%] rounded-lg px-3 py-2", m.from === "you" ? "bg-yellow-300/[0.12] text-white" : "glass-inset text-white/85")}>
                   <p className="text-[12px] leading-relaxed">{m.text}</p>
                   <p className="mt-1 text-[10px] text-muted-foreground">
-                    {m.from === "you" ? "You" : live ? "Your operator" : operator.name} · {m.when}
+                    {m.from === "you" ? "You" : live ? operatorName.replace(/^your operator$/, "Your operator") : operator.name} · {m.when}
                   </p>
                 </div>
               </motion.li>

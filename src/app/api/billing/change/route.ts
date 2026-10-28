@@ -5,6 +5,7 @@ import { findSubscription, itemPriceFor, summarize, volumeOf } from "@/lib/billi
 import { notifyTeam } from "@/lib/notify";
 import { volumes } from "@/lib/site";
 import { stripe } from "@/lib/stripe-server";
+import { logEvent } from "@/lib/supabase-admin";
 
 export const dynamic = "force-dynamic";
 
@@ -51,6 +52,12 @@ export async function POST(req: Request) {
       );
     }
 
+    await logEvent({
+      userId: auth.user.id,
+      email: auth.user.email,
+      type: from !== null && volume > from ? "plan_upgraded" : "plan_downgraded",
+      detail: { from, to: volume, subscription: sub.id },
+    });
     await notifyTeam({
       subject: `Plan change: ${auth.user.email} ${from ?? "?"} → ${volume}/day`,
       text: `${auth.user.email} changed their daily volume from ${from ?? "unknown"} to ${volume} emails per day.\nSubscription: ${sub.id}`,

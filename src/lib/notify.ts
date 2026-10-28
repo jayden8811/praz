@@ -2,6 +2,11 @@
 export const teamInbox = () => process.env.TEAM_EMAIL || "contact@praz.ai";
 
 export async function notifyTeam({ subject, text, replyTo }: { subject: string; text: string; replyTo?: string }) {
+  return sendEmail({ to: teamInbox(), subject, text, replyTo });
+}
+
+/** Sends a plain-text email through Resend. Returns false (and logs) if it couldn't. */
+export async function sendEmail({ to, subject, text, replyTo }: { to: string; subject: string; text: string; replyTo?: string }) {
   const key = process.env.RESEND_API_KEY;
   if (!key) {
     console.error("notify: RESEND_API_KEY is not set; message not sent:", subject);
@@ -12,7 +17,7 @@ export async function notifyTeam({ subject, text, replyTo }: { subject: string; 
     headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
     body: JSON.stringify({
       from: process.env.NOTIFY_FROM || "Praz <no-reply@praz.ai>",
-      to: [teamInbox()],
+      to: [to],
       subject,
       text,
       ...(replyTo ? { reply_to: replyTo } : {}),

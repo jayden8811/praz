@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { verifiedUser } from "@/lib/server-auth";
 import { describeSetup, notifyTeam } from "@/lib/notify";
+import { logEvent } from "@/lib/supabase-admin";
 
 export const dynamic = "force-dynamic";
 
@@ -15,6 +16,7 @@ export async function POST(req: Request) {
   if (body.kind === "message" && text) {
     sent = await notifyTeam({ subject: `Message from ${user.email}`, text, replyTo: user.email });
   } else if (body.kind === "setup" && body.setup && typeof body.setup === "object") {
+    await logEvent({ userId: user.id, email: user.email, type: "setup_updated", detail: { setup: body.setup } });
     sent = await notifyTeam({
       subject: `Setup change: ${user.email}`,
       text: `${user.email} updated their setup in the dashboard.\n\n${describeSetup(body.setup)}`,
