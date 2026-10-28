@@ -90,6 +90,15 @@ export async function currentEmail(): Promise<string | null> {
   return data.session?.user.email ?? null;
 }
 
+/** Calls one of our own API routes as the signed-in user. */
+export async function authedFetch(path: string, init: RequestInit = {}) {
+  const token = authConfigured ? (await supabase().auth.getSession()).data.session?.access_token : null;
+  const headers = new Headers(init.headers);
+  if (token) headers.set("Authorization", `Bearer ${token}`);
+  if (init.body) headers.set("Content-Type", "application/json");
+  return fetch(path, { ...init, headers, cache: "no-store" });
+}
+
 /** True once the reset link has signed the user in for a password change. */
 export function onPasswordRecovery(cb: () => void) {
   if (!authConfigured) return () => {};

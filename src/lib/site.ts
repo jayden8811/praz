@@ -16,6 +16,7 @@ export const site = {
 };
 
 export const volumes = [1000, 2000, 3000, 4000, 5000] as const;
+export type Volume = (typeof volumes)[number];
 
 // Volume the sliders start on; people can still drag down to 1,000.
 export const defaultVolume: (typeof volumes)[number] = 2000;

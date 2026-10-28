@@ -3,6 +3,7 @@ import type Stripe from "stripe";
 import { pricing, stripeLookupKey, volumes } from "@/lib/site";
 import { destination, type Setup } from "@/lib/setup";
 import { keyProblem, stripe } from "@/lib/stripe-server";
+import { findSubscription } from "@/lib/billing-server";
 
 // Creates an embedded Checkout Session for the plan chosen in onboarding,
 // and reports a session's status once the client says payment finished.
@@ -48,6 +49,21 @@ export async function POST(req: Request) {
   const volume = volumes.find((v) => v === setup.dailyVolume);
   if (!volume) return NextResponse.json({ error: "Unknown plan" }, { status: 400 });
 
+  // One subscription per client: changes to an existing plan happen in the dashboard.
+  const email = /\S+@\S+\.\S+/.test(setup.accountEmail ?? "") ? setup.accountEmail.trim().toLowerCase() : null;
+  if (email) {
+    try {
+      if (await findSubscription(email)) {
+        return NextResponse.json(
+          { error: "This email already has an active subscription. Log in to your dashboard to change your plan." },
+          { status: 409 }
+        );
+      }
+    } catch (err) {
+      console.error("checkout duplicate check failed", err);
+    }
+  }
+
   const metadata = {
     daily_volume: String(volume),
     company: clip(setup.company ?? ""),
@@ -66,7 +82,7 @@ export async function POST(req: Request) {
       ui_mode: "embedded_page",
       redirect_on_completion: "never",
       line_items: [await lineItem(volume)],
-      customer_email: /\S+@\S+\.\S+/.test(setup.accountEmail ?? "") ? setup.accountEmail : undefined,
+      customer_email: email ?? undefined,
       metadata,
       subscription_data: { metadata },
       branding_settings: {

@@ -145,7 +145,8 @@ const KEY = "praz:setup";
 export function loadSetup(): Setup | null {
   try {
     const raw = localStorage.getItem(KEY);
-    return raw ? { ...sampleSetup, ...JSON.parse(raw) } : null;
+    // Fill gaps with blanks, never with the sample company.
+    return raw ? { ...emptySetup, ...JSON.parse(raw) } : null;
   } catch {
     return null;
   }

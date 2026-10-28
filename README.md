@@ -36,3 +36,16 @@ Until those keys are set, the site uses a stand-in that keeps accounts in the vi
 ## Booking calls (Cal.com)
 
 "Book a Call" opens `/book`, which shows the next 7 days, open times from the Cal.com event `praz-kjqqtj/15min`, and a short details form. The page talks to `/api/booking`, which calls Cal.com's API v2 from the server. Public event types work without a key; to add one, set `CAL_API_KEY` in `.env.local` and in your host's environment variables (it is only read on the server). To use a different event, change `cal` in `src/lib/booking.ts`.
+
+## Plans and billing
+
+The dashboard's **Plan & billing** section shows the client's plan, renewal date and card, and lets them:
+
+- **Change daily volume.** Picking another volume shows what it costs today before confirming. The existing subscription's price is swapped, never a second subscription: unused time on the old plan is credited and only the remaining time on the new plan is charged (upgrades are charged immediately; downgrades leave credit for future invoices). If the charge fails, the plan stays as it was.
+- **Manage billing.** Opens Stripe's billing portal to update the card, download invoices, or cancel at the end of the current period.
+
+Subscriptions are matched to logins by email, so the portal doesn't allow changing the billing email. Checkout refuses to start a second subscription for an email that already has one.
+
+## Team notifications
+
+With `RESEND_API_KEY` set, the team inbox (`contact@praz.ai`) receives: each new client's full onboarding answers after payment, setup edits, plan changes, and messages sent from the dashboard (reply-to is the client).

@@ -113,3 +113,13 @@ export const meetings: Meeting[] = [
   { name: "Tom Becker", company: "Fieldwire", when: "Tue, Nov 4 · 3:30 PM" },
   { name: "Elena Ruiz", company: "Kitestring", when: "Wed, Nov 5 · 1:00 PM" },
 ];
+
+/** The same six-month calendar with nothing in it yet, for accounts whose campaign hasn't started. */
+export function emptyDays(): Day[] {
+  const today = new Date();
+  today.setUTCHours(0, 0, 0, 0);
+  return Array.from({ length: DAYS }, (_, i) => {
+    const d = new Date(today.getTime() - (DAYS - 1 - i) * 86_400_000);
+    return { date: d.toISOString().slice(0, 10), sent: 0, replies: 0, positive: 0, calls: 0, answered: 0, meetings: 0 };
+  });
+}

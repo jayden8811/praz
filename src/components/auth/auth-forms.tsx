@@ -128,6 +128,8 @@ export function LoginForm() {
   useEffect(() => {
     const message = linkError();
     if (message) setError(message);
+    // Already signed in: go straight to the dashboard.
+    else if (authConfigured) currentEmail().then((e) => e && window.location.replace(site.dashboardUrl));
   }, []);
 
   const resend = async () => {

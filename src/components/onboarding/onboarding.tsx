@@ -863,7 +863,11 @@ function Checkout({ stripe, setup, onPaid }: { stripe: ReturnType<typeof loadStr
   const onComplete = useCallback(async () => {
     setVerifying(true);
     try {
-      const res = await fetch(`/api/checkout?session_id=${encodeURIComponent(sessionId.current ?? "")}`);
+      const res = await fetch("/api/checkout/complete", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sessionId: sessionId.current, setup: setupRef.current }),
+      });
       const data = await res.json();
       if (data.status === "complete") onPaidRef.current();
       else setError("We couldn't confirm your payment yet. Refresh in a moment, or message us if you were charged.");

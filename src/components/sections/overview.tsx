@@ -6,6 +6,7 @@ import {
   ArrowUpRight,
   CalendarDays,
   Info,
+  LayoutDashboard,
   Lock,
   MessageCircle,
   Tag,
@@ -17,6 +18,7 @@ import { Separator } from "@/components/ui/separator";
 import { Slider } from "@/components/ui/slider";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { defaultVolumeIndex, formatVolume, pricing, site, volumes } from "@/lib/site";
+import { authConfigured, currentEmail } from "@/lib/auth";
 import { cn } from "@/lib/utils";
 
 const ease = [0.22, 1, 0.36, 1] as const;
@@ -64,10 +66,16 @@ export function Overview() {
 }
 
 function TopBar() {
+  const [signedIn, setSignedIn] = useState(false);
+  useEffect(() => {
+    if (authConfigured) currentEmail().then((e) => setSignedIn(!!e));
+  }, []);
   const items = [
-    { href: site.onboardingUrl, label: "Start now", icon: ArrowUpRight },
-    { href: "#pricing", label: "Pricing", icon: Tag },
-    { href: site.loginUrl, label: "Log in", icon: Lock },
+    { href: site.onboardingUrl, label: "Start now", icon: ArrowUpRight, mobile: false },
+    { href: "#pricing", label: "Pricing", icon: Tag, mobile: false },
+    signedIn
+      ? { href: site.dashboardUrl, label: "Dashboard", icon: LayoutDashboard, mobile: true }
+      : { href: site.loginUrl, label: "Log in", icon: Lock, mobile: true },
   ];
   return (
     <motion.header {...fade(0)} className="flex items-center justify-between px-4 py-3 md:px-5">
@@ -79,11 +87,14 @@ function TopBar() {
         >
           <CalendarDays className="size-3.5" /> Book a Call
         </a>
-        {items.map(({ href, label, icon: Icon }) => (
+        {items.map(({ href, label, icon: Icon, mobile }) => (
           <a
             key={label}
             href={href}
-            className="hidden items-center gap-1.5 rounded-md px-2.5 py-1 text-[12px] text-white/70 transition-colors hover:bg-white/[0.05] hover:text-white sm:flex"
+            className={cn(
+              "items-center gap-1.5 rounded-md px-2.5 py-1 text-[12px] text-white/70 transition-colors hover:bg-white/[0.05] hover:text-white",
+              mobile ? "flex" : "hidden sm:flex"
+            )}
           >
             <Icon className="size-3.5" /> {label}
           </a>
