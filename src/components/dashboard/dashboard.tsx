@@ -27,7 +27,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { calls, days, meetings, operator, positiveReplies, totals, type Call, type Day } from "@/lib/dashboard-data";
 import { destinationValid, goalLabel, loadSetup, sampleSetup, saveSetup, type Goal, type Setup } from "@/lib/setup";
-import { pricing } from "@/lib/site";
+import { pricing, site } from "@/lib/site";
+import { authConfigured, currentEmail, loadSetupFromAccount, saveSetupToAccount, signOut } from "@/lib/auth";
 import { cn } from "@/lib/utils";
 
 const ease = [0.22, 1, 0.36, 1] as const;
@@ -51,15 +52,26 @@ export function Dashboard() {
   const [setup, setSetup] = useState<Setup>(sampleSetup);
   const [range, setRange] = useState<Range>(30);
   const [editing, setEditing] = useState(false);
+  const [account, setAccount] = useState<string | null>(null);
 
   useEffect(() => {
-    const saved = loadSetup();
-    if (saved) setSetup(saved);
+    (async () => {
+      const email = await currentEmail();
+      // Real accounts require a session; the static preview shows sample data to anyone.
+      if (authConfigured && !email) {
+        window.location.href = site.loginUrl;
+        return;
+      }
+      setAccount(email);
+      const saved = (await loadSetupFromAccount()) ?? loadSetup();
+      if (saved) setSetup(saved);
+    })();
   }, []);
 
   const update = (next: Setup) => {
     setSetup(next);
     saveSetup(next);
+    saveSetupToAccount(next);
   };
 
   const goal = setup.goal;
@@ -83,7 +95,7 @@ export function Dashboard() {
 
   return (
     <div className="relative flex min-h-svh flex-col">
-      <TopBar />
+      <TopBar account={account} />
 
       <div className="mx-auto flex w-full max-w-[680px] flex-1 flex-col px-4 pb-16 pt-12 md:pt-16">
         {/* identity */}
@@ -244,18 +256,27 @@ export function Dashboard() {
 
 /* ------------------------------------------------------------------ */
 
-function TopBar() {
-  const link = "flex items-center gap-1.5 rounded-md px-2.5 py-1 text-[12px] text-white/70 transition-colors hover:bg-white/[0.05] hover:text-white";
+function TopBar({ account }: { account: string | null }) {
+  const link = "flex items-center gap-1.5 rounded-md px-2.5 py-1 text-[12px] text-white/70 transition-colors hover:bg-white/[0.05] hover:text-white cursor-pointer";
+  const logOut = async () => {
+    await signOut();
+    window.location.href = site.homeUrl;
+  };
   return (
     <motion.header {...fade(0)} className="flex items-center justify-between gap-3 px-4 py-3 md:px-5">
-      <span className="text-[13px] font-medium text-white/90">Dashboard</span>
+      <span className="flex min-w-0 items-baseline gap-2">
+        <span className="text-[13px] font-medium text-white/90">Dashboard</span>
+        {account && <span className="hidden truncate text-[11px] text-muted-foreground sm:inline">{account}</span>}
+      </span>
       <nav className="flex items-center gap-1">
         <a href="#settings" className={link}>
           <Settings className="size-3.5" /> Settings
         </a>
-        <a href="#logout" className={link}>
-          <LogOut className="size-3.5" /> Log out
-        </a>
+        {account && (
+          <button onClick={logOut} className={link}>
+            <LogOut className="size-3.5" /> Log out
+          </button>
+        )}
       </nav>
     </motion.header>
   );

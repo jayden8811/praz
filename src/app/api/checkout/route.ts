@@ -42,7 +42,7 @@ export async function POST(req: Request) {
       ui_mode: "embedded_page",
       redirect_on_completion: "never",
       line_items: [{ price: stripePrices[volume], quantity: 1 }],
-      customer_email: /\S+@\S+\.\S+/.test(setup.email ?? "") ? setup.email : undefined,
+      customer_email: /\S+@\S+\.\S+/.test(setup.accountEmail ?? "") ? setup.accountEmail : undefined,
       metadata,
       subscription_data: { metadata },
       branding_settings: {

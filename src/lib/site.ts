@@ -1,11 +1,16 @@
 // Central place for links and pricing — swap these for real URLs/prices.
+
+// Internal page link. The static design preview serves each page as a sibling .html file.
+export const page = (path: string) =>
+  process.env.NEXT_PUBLIC_PREVIEW === "1" ? (path === "/" ? "./" : `${path.slice(1)}.html`) : path;
+
 export const site = {
   name: "Praz",
   bookUrl: "#book",
-  checkoutUrl: "#checkout",
-  loginUrl: "#login",
-  // Overridable so the static design preview can link to the hosted dashboard preview.
-  dashboardUrl: process.env.NEXT_PUBLIC_DASHBOARD_URL || "/dashboard",
+  homeUrl: page("/"),
+  onboardingUrl: page("/onboarding"),
+  loginUrl: page("/login"),
+  dashboardUrl: page("/dashboard"),
 };
 
 export const volumes = [1000, 2000, 3000, 4000, 5000] as const;

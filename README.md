@@ -20,3 +20,13 @@ Onboarding ends with an embedded Stripe Checkout for the chosen plan. To turn it
 2. Run the app as a server (`npm run build && npm start`, or deploy to a Node host such as Vercel), since `/api/checkout` creates the session.
 
 The five monthly prices live in `stripePrices` in `src/lib/site.ts`. They are sandbox prices; create matching live prices and swap the IDs in when you're ready to charge.
+
+## Accounts (Supabase Auth)
+
+Clients create their login (email + password) on the first onboarding step, log in at `/login`, and can reset a forgotten password from `/forgot-password`. To turn it on:
+
+1. Create a Supabase project and keep **Email** sign-in enabled (Authentication → Providers).
+2. Under Authentication → URL Configuration, set the Site URL to your domain and add `https://yourdomain.com/reset-password` and `https://yourdomain.com/dashboard` as redirect URLs.
+3. Add `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` to `.env.local` (see `.env.example`).
+
+Until those keys are set, the site uses a stand-in that keeps accounts in the visitor's browser only, so the flow can be previewed. The client's onboarding answers are saved to their account so they reappear when they log in on another device.

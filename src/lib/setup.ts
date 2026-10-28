@@ -6,6 +6,7 @@ import { volumes } from "@/lib/site";
 export type Goal = "call" | "book" | "website" | "inbox";
 
 export type Setup = {
+  accountEmail: string;
   company: string;
   website: string;
   offer: string;
@@ -63,6 +64,7 @@ export const goalLabel: Record<Goal, string> = {
 };
 
 export const sampleSetup: Setup = {
+  accountEmail: "jordan@northwind.com",
   company: "Northwind Capital",
   website: "northwind.com",
   offer: "Fractional CFO services for venture-backed SaaS companies.",
@@ -91,6 +93,7 @@ export const sampleSetup: Setup = {
 
 export const emptySetup: Setup = {
   ...sampleSetup,
+  accountEmail: "",
   company: "",
   website: "",
   offer: "",

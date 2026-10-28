@@ -12,6 +12,8 @@ import { Label } from "@/components/ui/label";
 import { Slider } from "@/components/ui/slider";
 import { Textarea } from "@/components/ui/textarea";
 import { formatVolume, pricing, site, volumes } from "@/lib/site";
+import { authConfigured, currentEmail, saveSetupToAccount, signUp } from "@/lib/auth";
+import { FormError, isEmail, MIN_PASSWORD, PasswordInput } from "@/components/auth/auth-forms";
 import { destination, destinationValid, emptySetup, goalLabel, goals, saveSetup, type Goal, type Setup } from "@/lib/setup";
 import { cn } from "@/lib/utils";
 
@@ -20,10 +22,12 @@ const DRAFT_KEY = "praz:onboarding-draft";
 const MIN_DEAL = 10000;
 
 const usd = (n: number) => "$" + Math.round(n).toLocaleString("en-US");
+const stepIndex = (id: StepId) => steps.findIndex((s) => s.id === id);
 
-type StepId = "business" | "targeting" | "offer" | "sender" | "goal" | "plan" | "review" | "payment";
+type StepId = "account" | "business" | "targeting" | "offer" | "sender" | "goal" | "plan" | "review" | "payment";
 
 const steps: { id: StepId; title: string; sub: string }[] = [
+  { id: "account", title: "Create your account", sub: "You'll use this to log in to your dashboard." },
   { id: "business", title: "Tell us about your business", sub: "So we can position you correctly." },
   { id: "targeting", title: "Who should we reach?", sub: "Plain English is fine. We turn it into a verified lead list." },
   { id: "offer", title: "What do you offer them?", sub: "This becomes the core of your email copy." },
@@ -36,6 +40,8 @@ const steps: { id: StepId; title: string; sub: string }[] = [
 
 function isValid(id: StepId, s: Setup) {
   switch (id) {
+    case "account":
+      return isEmail(s.accountEmail);
     case "business":
       return !!s.company.trim() && !!s.website.trim() && !!s.offer.trim() && s.dealSize > 0;
     case "targeting":
@@ -56,6 +62,21 @@ export function Onboarding() {
   const [step, setStep] = useState(0);
   const [dir, setDir] = useState(1);
   const [done, setDone] = useState(false);
+  // The password is never saved with the draft; it only lives here until the account is created.
+  const [password, setPassword] = useState("");
+  const [confirm, setConfirm] = useState("");
+  const [signedInAs, setSignedInAs] = useState<string | null>(null);
+  const [confirmPending, setConfirmPending] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [accountError, setAccountError] = useState<string | null>(null);
+
+  useEffect(() => {
+    currentEmail().then((email) => {
+      if (!email) return;
+      setSignedInAs(email);
+      setSetup((s) => ({ ...s, accountEmail: s.accountEmail || email }));
+    });
+  }, []);
 
   useEffect(() => {
     try {
@@ -86,10 +107,27 @@ export function Onboarding() {
   };
 
   const current = steps[step];
-  const valid = isValid(current.id, setup);
+  const passwordOk = password.length >= MIN_PASSWORD && password === confirm;
+  const valid = isValid(current.id, setup) && (current.id !== "account" || !!signedInAs || passwordOk);
+
+  const next = async () => {
+    if (current.id === "account" && !signedInAs) {
+      setBusy(true);
+      setAccountError(null);
+      const res = await signUp(setup.accountEmail.trim(), password);
+      setBusy(false);
+      if (!res.ok) return setAccountError(res.error);
+      setSignedInAs(setup.accountEmail.trim());
+      setConfirmPending(!!res.needsConfirmation);
+      setPassword("");
+      setConfirm("");
+    }
+    go(step + 1);
+  };
 
   const finish = () => {
     saveSetup(setup);
+    saveSetupToAccount(setup);
     try {
       localStorage.removeItem(DRAFT_KEY);
     } catch {}
@@ -162,9 +200,21 @@ export function Onboarding() {
               transition={{ duration: 0.35, ease }}
             >
               {done ? (
-                <Done setup={setup} />
+                <Done setup={setup} confirmEmail={confirmPending ? setup.accountEmail : null} />
               ) : (
                 <div className="glass space-y-4 rounded-xl p-5">
+                  {current.id === "account" && (
+                    <AccountStep
+                      setup={setup}
+                      set={set}
+                      signedInAs={signedInAs}
+                      password={password}
+                      setPassword={setPassword}
+                      confirm={confirm}
+                      setConfirm={setConfirm}
+                      error={accountError}
+                    />
+                  )}
                   {current.id === "business" && <BusinessStep setup={setup} set={set} />}
                   {current.id === "targeting" && <TargetingStep setup={setup} set={set} />}
                   {current.id === "offer" && <OfferStep setup={setup} set={set} />}
@@ -190,11 +240,11 @@ export function Onboarding() {
             </button>
             {current.id !== "payment" && (
               <button
-                onClick={() => go(step + 1)}
-                disabled={!valid}
+                onClick={next}
+                disabled={!valid || busy}
                 className="group flex h-9 items-center gap-1.5 rounded-md bg-white px-4 text-[12px] font-medium text-zinc-950 transition-all hover:bg-white/90 active:scale-[0.98] disabled:cursor-not-allowed disabled:bg-white/15 disabled:text-white/40 cursor-pointer"
               >
-                {current.id === "review" ? "Continue to payment" : "Continue"}
+                {busy ? <Loader2 className="size-3.5 animate-spin" /> : current.id === "review" ? "Continue to payment" : "Continue"}
                 <ArrowRight className="size-3.5 transition-transform group-hover:translate-x-0.5" />
               </button>
             )}
@@ -611,13 +661,14 @@ function PlanStep({ setup, set }: StepProps) {
 
 function ReviewStep({ setup, edit }: { setup: Setup; edit: (step: number) => void }) {
   const groups: { step: number; title: string; rows: [string, string][] }[] = [
-    { step: 0, title: "Business", rows: [["Company", setup.company], ["Website", setup.website], ["Deal size", usd(setup.dealSize)]] },
-    { step: 1, title: "Targeting", rows: [["Ideal customer", setup.icp]] },
-    { step: 2, title: "Offer", rows: [["Problem", setup.problem], ["Offer", setup.cta]] },
-    { step: 3, title: "Sender", rows: [["From", [setup.senderName, setup.senderTitle].filter(Boolean).join(", ")], ["Address", setup.address]] },
-    { step: 4, title: "Goal", rows: [["Goal", goalLabel[setup.goal]], ["Send to", destination(setup)]] },
+    { step: stepIndex("account"), title: "Account", rows: [["Log in email", setup.accountEmail]] },
+    { step: stepIndex("business"), title: "Business", rows: [["Company", setup.company], ["Website", setup.website], ["Deal size", usd(setup.dealSize)]] },
+    { step: stepIndex("targeting"), title: "Targeting", rows: [["Ideal customer", setup.icp]] },
+    { step: stepIndex("offer"), title: "Offer", rows: [["Problem", setup.problem], ["Offer", setup.cta]] },
+    { step: stepIndex("sender"), title: "Sender", rows: [["From", [setup.senderName, setup.senderTitle].filter(Boolean).join(", ")], ["Address", setup.address]] },
+    { step: stepIndex("goal"), title: "Goal", rows: [["Goal", goalLabel[setup.goal]], ["Send to", destination(setup)]] },
     {
-      step: 5,
+      step: stepIndex("plan"),
       title: "Plan",
       rows: [
         ["Volume", `${setup.dailyVolume.toLocaleString("en-US")}/day`],
@@ -653,7 +704,7 @@ function ReviewStep({ setup, edit }: { setup: Setup; edit: (step: number) => voi
   );
 }
 
-function Done({ setup }: { setup: Setup }) {
+function Done({ setup, confirmEmail }: { setup: Setup; confirmEmail: string | null }) {
   const next = [
     "We build your lead list and register your sending domains.",
     "Inboxes warm up while we write your sequences.",
@@ -661,6 +712,11 @@ function Done({ setup }: { setup: Setup }) {
   ];
   return (
     <div className="glass rounded-xl p-5">
+      {confirmEmail && (
+        <p className="mb-4 rounded-md bg-yellow-300/10 px-3 py-2 text-[12px] text-yellow-100">
+          Confirm your email: we sent a link to {confirmEmail}. You&apos;ll need it to log in.
+        </p>
+      )}
       <p className="text-[12px] font-medium">What happens next</p>
       <ol className="mt-3 space-y-2.5">
         {next.map((n, i) => (
@@ -790,5 +846,69 @@ function Checkout({ setup, onPaid }: { setup: Setup; onPaid: () => void }) {
         )}
       </div>
     </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* Account                                                             */
+/* ------------------------------------------------------------------ */
+
+function AccountStep({
+  setup,
+  set,
+  signedInAs,
+  password,
+  setPassword,
+  confirm,
+  setConfirm,
+  error,
+}: StepProps & {
+  signedInAs: string | null;
+  password: string;
+  setPassword: (v: string) => void;
+  confirm: string;
+  setConfirm: (v: string) => void;
+  error: string | null;
+}) {
+  if (signedInAs) {
+    return (
+      <div className="flex items-center gap-3">
+        <span className="flex size-7 items-center justify-center rounded-md bg-yellow-300/15 text-yellow-100">
+          <Check className="size-3.5" />
+        </span>
+        <div className="text-[12px]">
+          <p className="text-white/90">Signed in as {signedInAs}</p>
+          <p className="text-muted-foreground">Continue to set up your campaign.</p>
+        </div>
+      </div>
+    );
+  }
+  const mismatch = confirm.length > 0 && confirm !== password;
+  return (
+    <>
+      <TextField
+        id="accountEmail"
+        type="email"
+        label="Work email"
+        value={setup.accountEmail}
+        onChange={(v) => set("accountEmail", v)}
+        placeholder="you@company.com"
+      />
+      <Field id="password" label="Password" hint={`At least ${MIN_PASSWORD} characters.`}>
+        <PasswordInput id="password" value={password} onChange={setPassword} autoComplete="new-password" />
+      </Field>
+      <Field id="confirm" label="Confirm password">
+        <PasswordInput id="confirm" value={confirm} onChange={setConfirm} autoComplete="new-password" />
+        {mismatch && <p className="text-[11px] text-red-300">Passwords don&apos;t match.</p>}
+      </Field>
+      <FormError error={error} />
+      <p className="text-[11px] text-muted-foreground">
+        Already have an account?{" "}
+        <a href={site.loginUrl} className="text-white/80 underline-offset-4 hover:text-white hover:underline">
+          Log in
+        </a>
+        {!authConfigured && " · Preview: accounts are kept in this browser only."}
+      </p>
+    </>
   );
 }

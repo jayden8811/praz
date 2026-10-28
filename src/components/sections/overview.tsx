@@ -65,7 +65,7 @@ export function Overview() {
 
 function TopBar() {
   const items = [
-    { href: site.checkoutUrl, label: "Start now", icon: ArrowUpRight },
+    { href: site.onboardingUrl, label: "Start now", icon: ArrowUpRight },
     { href: "#pricing", label: "Pricing", icon: Tag },
     { href: site.loginUrl, label: "Log in", icon: Lock },
   ];
@@ -312,7 +312,7 @@ function Calculator() {
               <ArrowUpRight className="size-3.5 transition-transform duration-300 group-hover:-translate-y-px group-hover:translate-x-px" />
             </a>
             <a
-              href={site.checkoutUrl}
+              href={site.onboardingUrl}
               className="flex h-8 items-center justify-center rounded-md border border-white/10 bg-white/[0.04] text-[12px] font-medium text-yellow-100 transition-colors hover:border-yellow-300/25 hover:bg-white/[0.07]"
             >
               Or start now

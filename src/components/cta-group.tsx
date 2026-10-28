@@ -36,7 +36,7 @@ export function CtaGroup({
 export function StartNow({ className }: { className?: string }) {
   return (
     <a
-      href={site.checkoutUrl}
+      href={site.onboardingUrl}
       className={cn(
         "group glass inline-flex flex-col items-center rounded-lg px-5 py-2 transition-all duration-300 hover:border-yellow-300/25 hover:bg-white/[0.06]",
         className
