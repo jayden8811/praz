@@ -4,6 +4,8 @@ export const site = {
   bookUrl: "#book",
   checkoutUrl: "#checkout",
   loginUrl: "#login",
+  // Overridable so the static design preview can link to the hosted dashboard preview.
+  dashboardUrl: process.env.NEXT_PUBLIC_DASHBOARD_URL || "/dashboard",
 };
 
 export const volumes = [1000, 2000, 3000, 4000, 5000] as const;

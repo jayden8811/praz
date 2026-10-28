@@ -11,7 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Slider } from "@/components/ui/slider";
 import { Textarea } from "@/components/ui/textarea";
-import { formatVolume, pricing, volumes } from "@/lib/site";
+import { formatVolume, pricing, site, volumes } from "@/lib/site";
 import { destination, destinationValid, emptySetup, goalLabel, goals, saveSetup, type Goal, type Setup } from "@/lib/setup";
 import { cn } from "@/lib/utils";
 
@@ -679,7 +679,7 @@ function Done({ setup }: { setup: Setup }) {
         ))}
       </ol>
       <a
-        href="/dashboard"
+        href={site.dashboardUrl}
         className="group mt-5 flex h-9 items-center justify-center gap-1.5 rounded-md bg-white text-[12px] font-medium text-zinc-950 transition-all hover:bg-white/90 active:scale-[0.98]"
       >
         Open my dashboard <ArrowRight className="size-3.5 transition-transform group-hover:translate-x-0.5" />
