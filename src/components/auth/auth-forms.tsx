@@ -106,6 +106,14 @@ export function FormError({ error }: { error: string | null }) {
   return <p className="rounded-md bg-red-400/10 px-3 py-2 text-[12px] text-red-200">{error}</p>;
 }
 
+/** A readable reason when an email link failed (expired, already used), from the URL hash. */
+function linkError(): string | null {
+  const params = new URLSearchParams(window.location.hash.slice(1));
+  if (!params.get("error_code") && !params.get("error_description")) return null;
+  if (params.get("error_code") === "otp_expired") return "That email link has expired or was already used. Request a new one below.";
+  return params.get("error_description")?.replace(/\+/g, " ") ?? "That email link didn't work. Please request a new one.";
+}
+
 const linkClass = "text-white/80 underline-offset-4 transition-colors hover:text-white hover:underline";
 
 export function LoginForm() {
@@ -115,6 +123,12 @@ export function LoginForm() {
   const [error, setError] = useState<string | null>(null);
   const [resent, setResent] = useState<"idle" | "sending" | "sent">("idle");
   const unconfirmed = !!error && /confirm your email/i.test(error);
+
+  // An expired or already-used email link lands here with the reason in the URL.
+  useEffect(() => {
+    const message = linkError();
+    if (message) setError(message);
+  }, []);
 
   const resend = async () => {
     setResent("sending");
@@ -257,6 +271,10 @@ export function ResetForm() {
   const [previewEmail, setPreviewEmail] = useState<string | undefined>();
 
   useEffect(() => {
+    if (linkError()) {
+      setReady("expired");
+      return;
+    }
     if (!authConfigured) {
       setPreviewEmail(new URLSearchParams(window.location.search).get("email") ?? undefined);
       return;
