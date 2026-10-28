@@ -2,9 +2,9 @@
 export const legal = {
   company: "Praz",
   domain: "praz.ai",
-  legalEmail: "legal@praz.ai",
-  privacyEmail: "privacy@praz.ai",
-  supportEmail: "support@praz.ai",
+  legalEmail: "contact@praz.ai",
+  privacyEmail: "contact@praz.ai",
+  supportEmail: "contact@praz.ai",
   governingState: "Delaware",
   venue: "Wilmington, Delaware",
   effectiveDate: "October 28, 2026",
