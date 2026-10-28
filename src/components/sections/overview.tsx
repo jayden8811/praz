@@ -177,7 +177,8 @@ function Calculator() {
   const replies = perDay * ASSUME.days * ASSUME.reply;
   const positive = replies * ASSUME.positive;
   const meetings = positive * ASSUME.meeting;
-  const deals = meetings * (close / 100);
+  // Whole clients only, so revenue matches the deals shown.
+  const deals = Math.round(meetings * (close / 100));
   const revenue = deals * ltv;
   const roi = ((revenue - cost) / cost) * 100;
 
@@ -281,7 +282,7 @@ function Calculator() {
             <Stat label="Total replies" value={replies} />
             <Stat label="Positive replies" value={positive} accent />
             <Stat label="Meetings booked" value={meetings} decimals />
-            <Stat label="Deals closed" value={deals} decimals />
+            <Stat label="Deals closed" value={deals} />
           </div>
 
           <Separator className="my-3" />
