@@ -8,7 +8,6 @@ import { site } from "@/lib/site";
 import { cn } from "@/lib/utils";
 
 const links = [
-  { href: "#how", label: "How it works" },
   { href: "#roi", label: "ROI" },
   { href: "#pricing", label: "Pricing" },
 ];
