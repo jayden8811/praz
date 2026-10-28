@@ -1,8 +1,6 @@
-// Sample client data for the dashboard. In production this comes from the
-// backend: sending stats from the campaign engine, calls from the client's
-// CallRail account, and the goal/ICP/phone captured during onboarding.
-
-export type Goal = "call" | "book";
+// Sample campaign data for the dashboard. In production this comes from the
+// backend: sending stats from the campaign engine and calls from the client's
+// CallRail account. The client's own setup lives in lib/setup.ts.
 
 export type Day = {
   date: string; // YYYY-MM-DD
@@ -23,8 +21,8 @@ export type PositiveReply = {
 };
 
 export type Call = {
-  name: string;
-  company: string;
+  from: string; // caller's number, as reported by CallRail
+  location: string;
   when: string;
   duration: string;
   status: "Answered" | "Missed" | "Voicemail";
@@ -36,19 +34,12 @@ export type Meeting = {
   when: string;
 };
 
-export const client = {
-  name: "Northwind Capital",
-  goal: "call" as Goal,
-  phone: "+1 (415) 555-0142",
-  calendar: "cal.com/northwind/intro",
-  icp: "CFOs and VPs of Finance at US B2B SaaS companies, $10M–$50M ARR, Series B+.",
-  operator: "Alex M.",
-  dailyVolume: 1000,
-  monthlyPrice: 2497,
-  inboxes: 36,
-  domains: 12,
+export const operator = {
+  name: "Alex M.",
   note: "Launched a new subject-line test on Monday. Variant B is pulling a 1.4% reply rate vs 0.9% on A, so it now gets all new sends.",
 };
+
+const SAMPLE_DAILY_VOLUME = 1000;
 
 // Deterministic pseudo-random numbers so server and client render the same data.
 function rng(seed: number) {
@@ -73,7 +64,7 @@ export const days: Day[] = (() => {
     const weekday = d.getUTCDay() % 6 !== 0; // no sending on weekends
     // ramp up over the first two weeks while inboxes warm
     const ramp = Math.min(1, (DAYS - i) / 14);
-    const sent = weekday ? Math.round(client.dailyVolume * ramp) : 0;
+    const sent = weekday ? Math.round(SAMPLE_DAILY_VOLUME * ramp) : 0;
     const replies = Math.round(sent * (0.006 + rand() * 0.01));
     const positive = Math.round(replies * (0.02 + rand() * 0.08));
     const calls = Math.min(positive, Math.round(positive * (0.4 + rand() * 0.5)));
@@ -108,11 +99,11 @@ export const positiveReplies: PositiveReply[] = [
 ];
 
 export const calls: Call[] = [
-  { name: "Dana Reyes", company: "Lumen Health", when: "Today, 1:12 PM", duration: "18m 04s", status: "Answered" },
-  { name: "Marcus Tran", company: "Arcline", when: "Today, 10:41 AM", duration: "9m 37s", status: "Answered" },
-  { name: "Priya Shah", company: "Northbeam", when: "Yesterday, 4:05 PM", duration: "0m 32s", status: "Voicemail" },
-  { name: "Tom Becker", company: "Fieldwire", when: "Yesterday, 11:20 AM", duration: "—", status: "Missed" },
-  { name: "Elena Ruiz", company: "Kitestring", when: "Oct 26, 2:48 PM", duration: "14m 51s", status: "Answered" },
+  { from: "+1 (646) 555-0187", location: "New York, NY", when: "Today, 1:12 PM", duration: "18m 04s", status: "Answered" },
+  { from: "+1 (512) 555-0123", location: "Austin, TX", when: "Today, 10:41 AM", duration: "9m 37s", status: "Answered" },
+  { from: "+1 (617) 555-0164", location: "Boston, MA", when: "Yesterday, 4:05 PM", duration: "0m 32s", status: "Voicemail" },
+  { from: "+1 (312) 555-0149", location: "Chicago, IL", when: "Yesterday, 11:20 AM", duration: "—", status: "Missed" },
+  { from: "+1 (206) 555-0178", location: "Seattle, WA", when: "Oct 26, 2:48 PM", duration: "14m 51s", status: "Answered" },
 ];
 
 export const meetings: Meeting[] = [

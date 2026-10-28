@@ -1,34 +1,32 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { motion } from "motion/react";
+import { useEffect, useMemo, useState } from "react";
+import { AnimatePresence, motion } from "motion/react";
 import {
   CalendarCheck,
   CalendarDays,
   Globe,
   Inbox,
   LogOut,
-  MessageSquareText,
+  Mail,
+  Pencil,
   Phone,
   PhoneIncoming,
+  Send,
   Settings,
   Target,
   UserRound,
 } from "lucide-react";
 import { LogoMark } from "@/components/logo";
 import { AnimatedNumber } from "@/components/animated-number";
+import { GoalDetails, GoalPicker, VolumePicker } from "@/components/onboarding/onboarding";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import {
-  calls,
-  client,
-  days,
-  meetings,
-  positiveReplies,
-  totals,
-  type Call,
-  type Day,
-  type Goal,
-} from "@/lib/dashboard-data";
+import { calls, days, meetings, operator, positiveReplies, totals, type Call, type Day } from "@/lib/dashboard-data";
+import { goalLabel, loadSetup, sampleSetup, saveSetup, type Goal, type Setup } from "@/lib/setup";
+import { pricing } from "@/lib/site";
 import { cn } from "@/lib/utils";
 
 const ease = [0.22, 1, 0.36, 1] as const;
@@ -45,25 +43,44 @@ const pct = (n: number) => (Math.round(n * 10) / 10).toFixed(1) + "%";
 const RANGES = [7, 30, 90, 180] as const;
 type Range = (typeof RANGES)[number];
 
-export function Dashboard() {
-  const [goal, setGoal] = useState<Goal>(client.goal);
-  const [range, setRange] = useState<Range>(30);
+type Message = { from: "operator" | "you"; text: string; when: string };
+const MESSAGES_KEY = "praz:messages";
 
+export function Dashboard() {
+  const [setup, setSetup] = useState<Setup>(sampleSetup);
+  const [range, setRange] = useState<Range>(30);
+  const [editing, setEditing] = useState(false);
+
+  useEffect(() => {
+    const saved = loadSetup();
+    if (saved) setSetup(saved);
+  }, []);
+
+  const update = (next: Setup) => {
+    setSetup(next);
+    saveSetup(next);
+  };
+
+  const goal = setup.goal;
+  const price = pricing[setup.dailyVolume];
   const t = useMemo(() => totals(days.slice(-range)), [range]);
-  const cost = client.monthlyPrice * (range / 30);
-  const isCall = goal === "call";
+  const cost = price * (range / 30);
 
   const stats = [
     { k: t.sent, v: "Emails sent", f: int },
     { k: t.replies, v: "Total replies", f: int },
     { k: t.positive, v: "Positive replies", f: int, accent: true },
-    isCall ? { k: t.calls, v: "Tracked calls", f: int } : { k: t.meetings, v: "Meetings booked", f: int },
+    goal === "call"
+      ? { k: t.calls, v: "Tracked calls", f: int }
+      : goal === "book"
+        ? { k: t.meetings, v: "Meetings booked", f: int }
+        : { k: t.replies ? (t.positive / t.replies) * 100 : 0, v: "Positive rate", f: pct },
     { k: t.positive ? cost / t.positive : 0, v: "Cost per positive", f: usd },
   ];
 
   return (
     <div className="relative flex min-h-svh flex-col">
-      <TopBar goal={goal} setGoal={setGoal} />
+      <TopBar />
 
       <div className="mx-auto flex w-full max-w-[680px] flex-1 flex-col px-4 pb-16 pt-12 md:pt-16">
         {/* identity */}
@@ -72,7 +89,7 @@ export function Dashboard() {
             <LogoMark className="size-14 text-white" />
           </motion.div>
           <motion.h1 {...fade(0.1)} className="mt-5 text-[22px] font-medium tracking-[-0.02em] md:text-[24px]">
-            {client.name}
+            {setup.company || "Your company"}
           </motion.h1>
           <motion.p {...fade(0.18)} className="mt-1.5 flex flex-wrap items-center justify-center gap-2 text-[12px] text-muted-foreground">
             <span className="flex items-center gap-1.5">
@@ -80,24 +97,17 @@ export function Dashboard() {
                 <span className="absolute inline-flex size-full animate-ping rounded-full bg-yellow-300 opacity-60" />
                 <span className="relative inline-flex size-1.5 rounded-full bg-yellow-300" />
               </span>
-              Campaign live · {int(client.dailyVolume)}/day
+              Campaign live · {int(setup.dailyVolume)}/day
             </span>
             <span className="text-white/20">·</span>
-            <span className="rounded-md bg-white/[0.06] px-1.5 py-0.5 text-white/70">
-              Goal: {isCall ? "calls to your phone" : "booked calls"}
-            </span>
+            <span className="rounded-md bg-white/[0.06] px-1.5 py-0.5 text-white/70">Goal: {goalLabel[goal].toLowerCase()}</span>
           </motion.p>
         </div>
 
         {/* range + stats */}
         <motion.div {...fade(0.26)} className="mt-8">
           <div className="mb-2.5 flex justify-center">
-            <Segmented
-              value={range}
-              options={RANGES.map((r) => ({ value: r, label: `${r}d` }))}
-              onChange={setRange}
-              layoutId="range-pill"
-            />
+            <Segmented value={range} options={RANGES.map((r) => ({ value: r, label: `${r}d` }))} onChange={setRange} layoutId="range-pill" />
           </div>
           <dl className="glass grid grid-cols-2 rounded-xl py-1 sm:grid-cols-5">
             {stats.map((s, i) => (
@@ -122,16 +132,14 @@ export function Dashboard() {
           <Activity goal={goal} />
         </motion.div>
 
-        <motion.div {...fade(0.42)} className="mt-10 grid gap-8 sm:grid-cols-2">
+        <motion.div {...fade(0.42)} className={cn("mt-10 grid gap-8", goal !== "inbox" && "sm:grid-cols-2")}>
           <section>
-            <SectionTitle>Latest positive replies</SectionTitle>
-            <ul className="mt-2 space-y-1.5">
+            <SectionTitle aside={goal === "inbox" ? `forwarded to ${setup.email}` : undefined}>Latest positive replies</SectionTitle>
+            <ul className={cn("mt-2 grid gap-1.5", goal === "inbox" && "sm:grid-cols-2")}>
               {positiveReplies.map((r) => (
                 <li key={r.name} className="glass-inset rounded-lg px-3 py-2">
                   <div className="flex items-center gap-2 text-[12px]">
-                    <span className="flex size-5 shrink-0 items-center justify-center rounded-md bg-white/[0.06] text-[9px] font-medium">
-                      {r.name[0]}
-                    </span>
+                    <span className="flex size-5 shrink-0 items-center justify-center rounded-md bg-white/[0.06] text-[9px] font-medium">{r.name[0]}</span>
                     <span className="truncate font-medium">{r.name}</span>
                     <span className="truncate text-[11px] text-muted-foreground">
                       {r.title} · {r.company}
@@ -144,40 +152,40 @@ export function Dashboard() {
             </ul>
           </section>
 
-          <section>
-            {isCall ? (
-              <>
-                <SectionTitle aside="via CallRail">Tracked calls</SectionTitle>
-                <dl className="mt-2">
-                  {calls.map((c) => (
-                    <Row
-                      key={c.name}
-                      icon={PhoneIncoming}
-                      label={c.name}
-                      sub={`${c.company} · ${c.when}`}
-                      value={
-                        <span className="flex items-center gap-2">
-                          <span className="text-muted-foreground">{c.duration}</span>
-                          <CallStatus status={c.status} />
-                        </span>
-                      }
-                    />
-                  ))}
-                </dl>
-                <Summary label="Answered" value={`${int(t.answered)} of ${int(t.calls)}`} />
-              </>
-            ) : (
-              <>
-                <SectionTitle aside={client.calendar}>Upcoming meetings</SectionTitle>
-                <dl className="mt-2">
-                  {meetings.map((m) => (
-                    <Row key={m.name} icon={CalendarCheck} label={m.name} sub={m.company} value={<span className="text-muted-foreground">{m.when}</span>} />
-                  ))}
-                </dl>
-                <Summary label="Booked this period" value={int(t.meetings)} />
-              </>
-            )}
-          </section>
+          {goal === "call" && (
+            <section>
+              <SectionTitle aside="via CallRail">Tracked calls</SectionTitle>
+              <dl className="mt-2">
+                {calls.map((c) => (
+                  <Row
+                    key={c.from}
+                    icon={PhoneIncoming}
+                    label={c.from}
+                    sub={`${c.location} · ${c.when}`}
+                    value={
+                      <span className="flex items-center gap-2">
+                        <span className="text-muted-foreground">{c.duration}</span>
+                        <CallStatus status={c.status} />
+                      </span>
+                    }
+                  />
+                ))}
+              </dl>
+              <Summary label="Answered" value={`${int(t.answered)} of ${int(t.calls)}`} />
+            </section>
+          )}
+
+          {goal === "book" && (
+            <section>
+              <SectionTitle aside={setup.calendar}>Upcoming meetings</SectionTitle>
+              <dl className="mt-2">
+                {meetings.map((m) => (
+                  <Row key={m.name} icon={CalendarCheck} label={m.name} sub={m.company} value={<span className="text-muted-foreground">{m.when}</span>} />
+                ))}
+              </dl>
+              <Summary label="Booked this period" value={int(t.meetings)} />
+            </section>
+          )}
         </motion.div>
 
         <motion.div {...fade(0.5)} className="mt-10 grid gap-8 sm:grid-cols-2">
@@ -186,75 +194,62 @@ export function Dashboard() {
             <dl className="mt-2">
               <Row label="Reply rate" value={pct(t.sent ? (t.replies / t.sent) * 100 : 0)} />
               <Row label="Positive rate" sub="of replies" value={pct(t.replies ? (t.positive / t.replies) * 100 : 0)} />
-              {isCall ? (
-                <Row label="Positive replies that called" value={pct(t.positive ? (t.calls / t.positive) * 100 : 0)} />
-              ) : (
-                <Row label="Positive replies that booked" value={pct(t.positive ? (t.meetings / t.positive) * 100 : 0)} />
-              )}
-              <Row label="Active inboxes" value={int(client.inboxes)} />
-              <Row label="Sending domains" value={int(client.domains)} />
+              {goal === "call" && <Row label="Positive replies that called" value={pct(t.positive ? (t.calls / t.positive) * 100 : 0)} />}
+              {goal === "call" && <Row label="Calls answered" value={pct(t.calls ? (t.answered / t.calls) * 100 : 0)} />}
+              {goal === "book" && <Row label="Positive replies that booked" value={pct(t.positive ? (t.meetings / t.positive) * 100 : 0)} />}
             </dl>
           </section>
 
-          <section>
-            <SectionTitle>Your setup</SectionTitle>
+          <section id="settings">
+            <div className="flex items-center justify-between">
+              <SectionTitle>Your setup</SectionTitle>
+              <button
+                onClick={() => setEditing(true)}
+                aria-label="Edit your setup"
+                className="flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[11px] text-muted-foreground transition-colors hover:bg-white/[0.05] hover:text-white cursor-pointer"
+              >
+                <Pencil className="size-3" /> Edit
+              </button>
+            </div>
             <dl className="mt-2">
-              <Row icon={Target} label="Goal" value={isCall ? "Calls to your phone" : "Booked calls"} />
-              {isCall ? (
-                <Row icon={Phone} label="Forwarding number" value={client.phone} />
-              ) : (
-                <Row icon={CalendarDays} label="Booking link" value={client.calendar} />
-              )}
-              <Row icon={UserRound} label="Your operator" value={client.operator} />
-              <Row icon={Inbox} label="Daily volume" value={`${int(client.dailyVolume)}/day`} />
+              <Row icon={Target} label="Goal" value={goalLabel[goal]} />
+              {goal === "call" && <Row icon={Phone} label="Forwarding number" value={setup.phone} />}
+              {goal === "book" && <Row icon={CalendarDays} label="Booking link" value={setup.calendar} />}
+              {goal === "inbox" && <Row icon={Mail} label="Forwarding email" value={setup.email} />}
+              <Row icon={Inbox} label="Daily volume" value={`${int(setup.dailyVolume)}/day · ${usd(price)}/mo`} />
+              <Row icon={UserRound} label="Your operator" value={operator.name} />
             </dl>
             <div className="glass-inset mt-2 rounded-lg px-3 py-2">
               <p className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
                 <Globe className="size-3" /> Ideal customer
               </p>
-              <p className="mt-1 text-[12px] leading-relaxed text-white/80">{client.icp}</p>
+              <p className="mt-1 text-[12px] leading-relaxed text-white/80">{setup.icp}</p>
             </div>
           </section>
         </motion.div>
 
-        <motion.div {...fade(0.58)} className="glass mt-10 rounded-xl px-4 py-3.5">
-          <p className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
-            <MessageSquareText className="size-3" /> Note from {client.operator} · this week
-          </p>
-          <p className="mt-1.5 text-[13px] leading-relaxed text-white/85">{client.note}</p>
+        <motion.div {...fade(0.58)} className="mt-10">
+          <OperatorThread />
         </motion.div>
       </div>
+
+      <EditSetup open={editing} onOpenChange={setEditing} setup={setup} onSave={update} />
     </div>
   );
 }
 
 /* ------------------------------------------------------------------ */
 
-function TopBar({ goal, setGoal }: { goal: Goal; setGoal: (g: Goal) => void }) {
+function TopBar() {
+  const link = "flex items-center gap-1.5 rounded-md px-2.5 py-1 text-[12px] text-white/70 transition-colors hover:bg-white/[0.05] hover:text-white";
   return (
     <motion.header {...fade(0)} className="flex items-center justify-between gap-3 px-4 py-3 md:px-5">
       <span className="text-[13px] font-medium text-white/90">Dashboard</span>
       <nav className="flex items-center gap-1">
-        <span className="mr-1 hidden text-[11px] text-muted-foreground sm:inline">Preview goal</span>
-        <Segmented
-          value={goal}
-          options={[
-            { value: "call", label: "Calls" },
-            { value: "book", label: "Meetings" },
-          ]}
-          onChange={setGoal}
-          layoutId="goal-pill"
-        />
-        <a
-          href="#settings"
-          className="hidden items-center gap-1.5 rounded-md px-2.5 py-1 text-[12px] text-white/70 transition-colors hover:bg-white/[0.05] hover:text-white sm:flex"
-        >
+        <a href="#settings" className={link}>
           <Settings className="size-3.5" /> Settings
         </a>
-        <a
-          href="#logout"
-          className="hidden items-center gap-1.5 rounded-md px-2.5 py-1 text-[12px] text-white/70 transition-colors hover:bg-white/[0.05] hover:text-white sm:flex"
-        >
+        <a href="#logout" className={link}>
           <LogOut className="size-3.5" /> Log out
         </a>
       </nav>
@@ -285,11 +280,7 @@ function Segmented<T extends string | number>({
           )}
         >
           {o.value === value && (
-            <motion.span
-              layoutId={layoutId}
-              className="absolute inset-0 rounded-md bg-white/[0.07]"
-              transition={{ type: "spring", stiffness: 420, damping: 34 }}
-            />
+            <motion.span layoutId={layoutId} className="absolute inset-0 rounded-md bg-white/[0.07]" transition={{ type: "spring", stiffness: 420, damping: 34 }} />
           )}
           <span className="relative">{o.label}</span>
         </button>
@@ -302,8 +293,10 @@ type Metric = "replies" | "positive" | "outcome";
 
 function Activity({ goal }: { goal: Goal }) {
   const [metric, setMetric] = useState<Metric>("positive");
-  const key: keyof Day = metric === "outcome" ? (goal === "call" ? "calls" : "meetings") : metric;
-  const label = metric === "outcome" ? (goal === "call" ? "calls" : "meetings") : metric === "positive" ? "positive replies" : "replies";
+  const shown: Metric = goal === "inbox" && metric === "outcome" ? "positive" : metric;
+  const outcome = goal === "call" ? "calls" : "meetings";
+  const key: keyof Day = shown === "outcome" ? outcome : shown;
+  const label = shown === "outcome" ? outcome : shown === "positive" ? "positive replies" : "replies";
 
   // Pad the start so columns are whole weeks (Sun → Sat).
   const first = new Date(days[0].date + "T00:00:00Z").getUTCDay();
@@ -325,20 +318,17 @@ function Activity({ goal }: { goal: Goal }) {
     return m;
   });
 
+  const options: { value: Metric; label: string }[] = [
+    { value: "replies", label: "Replies" },
+    { value: "positive", label: "Positive" },
+  ];
+  if (goal !== "inbox") options.push({ value: "outcome", label: goal === "call" ? "Calls" : "Meetings" });
+
   return (
     <section>
       <div className="flex items-center justify-between gap-3">
         <SectionTitle>Activity · last 6 months</SectionTitle>
-        <Segmented
-          value={metric}
-          options={[
-            { value: "replies", label: "Replies" },
-            { value: "positive", label: "Positive" },
-            { value: "outcome", label: goal === "call" ? "Calls" : "Meetings" },
-          ]}
-          onChange={setMetric}
-          layoutId="metric-pill"
-        />
+        <Segmented value={shown} options={options} onChange={setMetric} layoutId="metric-pill" />
       </div>
       <div className="glass mt-3 overflow-x-auto rounded-xl px-3 py-4 sm:px-4">
         <div className="mx-auto flex w-max gap-[2px] sm:gap-[3px]" role="img" aria-label={`Daily ${label}, last 6 months`}>
@@ -359,8 +349,7 @@ function Activity({ goal }: { goal: Goal }) {
                       />
                     </TooltipTrigger>
                     <TooltipContent>
-                      {int(v)} {label} ·{" "}
-                      {new Date(d.date + "T00:00:00Z").toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" })}
+                      {int(v)} {label} · {new Date(d.date + "T00:00:00Z").toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" })}
                     </TooltipContent>
                   </Tooltip>
                 );
@@ -376,11 +365,173 @@ function Activity({ goal }: { goal: Goal }) {
   );
 }
 
+function EditSetup({
+  open,
+  onOpenChange,
+  setup,
+  onSave,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  setup: Setup;
+  onSave: (s: Setup) => void;
+}) {
+  const [draft, setDraft] = useState(setup);
+  useEffect(() => {
+    if (open) setDraft(setup);
+  }, [open, setup]);
+
+  const set = <K extends keyof Setup>(key: K, value: Setup[K]) => setDraft((d) => ({ ...d, [key]: value }));
+  const digits = draft.phone.replace(/\D/g, "").length;
+  const valid =
+    draft.icp.trim().length >= 10 &&
+    (draft.goal === "call" ? digits >= 10 : draft.goal === "book" ? draft.calendar.trim().length > 4 : /\S+@\S+\.\S+/.test(draft.email));
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Edit your setup</DialogTitle>
+          <DialogDescription>Changes go to your operator, who applies them to the live campaign.</DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-2">
+          <Label>Goal</Label>
+          <GoalPicker value={draft.goal} onChange={(g) => set("goal", g)} />
+        </div>
+        <GoalDetails setup={draft} set={set} />
+
+        <div className="glass-inset rounded-lg p-3.5">
+          <VolumePicker value={draft.dailyVolume} onChange={(v) => set("dailyVolume", v)} />
+          <p className="mt-2 text-right text-[11px] text-muted-foreground">
+            <span className="text-white tabular-nums">{usd(pricing[draft.dailyVolume])}</span>/mo
+          </p>
+        </div>
+
+        <div className="space-y-1.5">
+          <Label htmlFor="edit-icp">Ideal customer</Label>
+          <Textarea id="edit-icp" value={draft.icp} onChange={(e) => set("icp", e.target.value)} />
+        </div>
+
+        <DialogFooter>
+          <button
+            onClick={() => onOpenChange(false)}
+            className="h-8 rounded-md px-3 text-[12px] text-white/70 transition-colors hover:bg-white/[0.05] hover:text-white cursor-pointer"
+          >
+            Cancel
+          </button>
+          <button
+            disabled={!valid}
+            onClick={() => {
+              onSave(draft);
+              onOpenChange(false);
+            }}
+            className="h-8 rounded-md bg-white px-4 text-[12px] font-medium text-zinc-950 transition-all hover:bg-white/90 active:scale-[0.98] disabled:cursor-not-allowed disabled:bg-white/15 disabled:text-white/40 cursor-pointer"
+          >
+            Save changes
+          </button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function OperatorThread() {
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [text, setText] = useState("");
+
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(MESSAGES_KEY);
+      if (raw) setMessages(JSON.parse(raw));
+    } catch {
+      // storage unavailable
+    }
+  }, []);
+
+  const thread: Message[] = [{ from: "operator", text: operator.note, when: "This week" }, ...messages];
+
+  const send = () => {
+    const body = text.trim();
+    if (!body) return;
+    const when = new Date().toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+    const next = [...messages, { from: "you" as const, text: body, when }];
+    setMessages(next);
+    setText("");
+    try {
+      localStorage.setItem(MESSAGES_KEY, JSON.stringify(next));
+    } catch {
+      // storage unavailable
+    }
+  };
+
+  return (
+    <section>
+      <SectionTitle aside="usually replies within a few hours">Message {operator.name}</SectionTitle>
+      <div className="glass mt-3 rounded-xl p-4">
+        <ul className="space-y-2">
+          <AnimatePresence initial={false}>
+            {thread.map((m, i) => (
+              <motion.li
+                key={i}
+                initial={{ opacity: 0, y: 6 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.3, ease }}
+                className={cn("flex", m.from === "you" ? "justify-end" : "justify-start")}
+              >
+                <div className={cn("max-w-[85%] rounded-lg px-3 py-2", m.from === "you" ? "bg-yellow-300/[0.12] text-white" : "glass-inset text-white/85")}>
+                  <p className="text-[12px] leading-relaxed">{m.text}</p>
+                  <p className="mt-1 text-[10px] text-muted-foreground">
+                    {m.from === "you" ? "You" : operator.name} · {m.when}
+                  </p>
+                </div>
+              </motion.li>
+            ))}
+          </AnimatePresence>
+        </ul>
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            send();
+          }}
+          className="mt-3 flex items-end gap-2"
+        >
+          <label htmlFor="operator-message" className="sr-only">
+            Message your operator
+          </label>
+          <Textarea
+            id="operator-message"
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && !e.shiftKey) {
+                e.preventDefault();
+                send();
+              }
+            }}
+            placeholder="Ask a question or request a change…"
+            className="min-h-9 resize-none py-1.5"
+            rows={1}
+          />
+          <button
+            type="submit"
+            disabled={!text.trim()}
+            aria-label="Send message"
+            className="flex size-9 shrink-0 items-center justify-center rounded-md bg-white text-zinc-950 transition-all hover:bg-white/90 active:scale-95 disabled:cursor-not-allowed disabled:bg-white/15 disabled:text-white/40 cursor-pointer"
+          >
+            <Send className="size-3.5" />
+          </button>
+        </form>
+      </div>
+    </section>
+  );
+}
+
 function SectionTitle({ children, aside }: { children: React.ReactNode; aside?: string }) {
   return (
-    <h2 className="flex items-baseline gap-2 text-[13px] font-medium">
-      {children}
-      {aside && <span className="text-[11px] font-normal text-muted-foreground">{aside}</span>}
+    <h2 className="flex min-w-0 items-baseline gap-2 text-[13px] font-medium">
+      <span className="shrink-0">{children}</span>
+      {aside && <span className="truncate text-[11px] font-normal text-muted-foreground">{aside}</span>}
     </h2>
   );
 }
@@ -405,11 +556,11 @@ function Row({
           </span>
         )}
         <span className="min-w-0">
-          <span className={cn("block truncate", Icon ? "text-white/90" : "text-muted-foreground")}>{label}</span>
+          <span className={cn("block truncate tabular-nums", Icon ? "text-white/90" : "text-muted-foreground")}>{label}</span>
           {sub && <span className="block truncate text-[10px] text-muted-foreground">{sub}</span>}
         </span>
       </dt>
-      <dd className="shrink-0 text-right text-[12px] tabular-nums text-white">{value}</dd>
+      <dd className="min-w-0 truncate text-right text-[12px] tabular-nums text-white">{value}</dd>
     </div>
   );
 }
