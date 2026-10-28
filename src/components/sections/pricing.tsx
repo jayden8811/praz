@@ -8,6 +8,7 @@ import {
   Database,
   Globe,
   PenLine,
+  Send,
   PhoneForwarded,
   ShieldCheck,
   UserRound,
@@ -20,17 +21,19 @@ import { cn } from "@/lib/utils";
 
 const ease = [0.22, 1, 0.36, 1] as const;
 
-// What each piece would cost to hire or buy separately, per month.
+// Typical monthly cost to hire or buy each piece separately, as base + per 1k/day of volume.
 const stack = [
-  { icon: UserRound, label: "Dedicated campaign operator", value: 6000 },
-  { icon: Database, label: "Verified high-ticket lead data", value: 1500 },
-  { icon: Globe, label: "Domains & inboxes, warmed", value: 800 },
-  { icon: PenLine, label: "Copywriting & A/B testing", value: 2000 },
-  { icon: PhoneForwarded, label: "Replies routed to your phone", value: 2500 },
-  { icon: ShieldCheck, label: "Deliverability monitoring", value: 500 },
-  { icon: BarChart3, label: "Weekly pipeline reporting", value: 300 },
+  { icon: UserRound, label: "Dedicated campaign operator", base: 2000, perK: 500 },
+  { icon: Database, label: "Verified high-ticket lead data", base: 0, perK: 400 },
+  { icon: Globe, label: "Domains & inboxes, warmed", base: 0, perK: 300 },
+  { icon: Send, label: "Sending & warmup platform", base: 60, perK: 40 },
+  { icon: PenLine, label: "Copywriting & A/B testing", base: 1000, perK: 0 },
+  { icon: PhoneForwarded, label: "Replies routed to your phone", base: 900, perK: 600 },
+  { icon: ShieldCheck, label: "Deliverability monitoring", base: 150, perK: 0 },
+  { icon: BarChart3, label: "Weekly pipeline reporting", base: 150, perK: 0 },
 ];
-const totalValue = stack.reduce((sum, s) => sum + s.value, 0);
+const costAt = (item: (typeof stack)[number], perDay: number) =>
+  Math.round((item.base + item.perK * (perDay / 1000)) / 50) * 50;
 
 const usd = (n: number) => "$" + Math.round(n).toLocaleString("en-US");
 
@@ -38,6 +41,7 @@ export function Pricing() {
   const [volIdx, setVolIdx] = useState(0);
   const perDay = volumes[volIdx];
   const price = pricing[perDay];
+  const totalValue = stack.reduce((sum, item) => sum + costAt(item, perDay), 0);
 
   return (
     <section id="pricing" className="relative scroll-mt-10 py-16 md:py-20">
@@ -53,9 +57,9 @@ export function Pricing() {
         <div className="glass mt-3 rounded-xl p-5">
           {/* value stack */}
           <dl>
-            {stack.map(({ icon: Icon, label, value }, i) => (
+            {stack.map((item, i) => (
               <motion.div
-                key={label}
+                key={item.label}
                 initial={{ opacity: 0, x: -6 }}
                 whileInView={{ opacity: 1, x: 0 }}
                 viewport={{ once: true }}
@@ -64,11 +68,13 @@ export function Pricing() {
               >
                 <dt className="flex items-center gap-2.5 text-white/90">
                   <span className="flex size-5 items-center justify-center rounded-md bg-white/[0.06]">
-                    <Icon className="size-3 text-white/80" />
+                    <item.icon className="size-3 text-white/80" />
                   </span>
-                  {label}
+                  {item.label}
                 </dt>
-                <dd className="tabular-nums text-muted-foreground">{usd(value)}/mo</dd>
+                <dd className="tabular-nums text-muted-foreground">
+                  <AnimatedNumber value={costAt(item, perDay)} format={(n) => usd(n) + "/mo"} />
+                </dd>
               </motion.div>
             ))}
           </dl>
@@ -76,9 +82,9 @@ export function Pricing() {
           <Separator className="my-3" />
 
           <div className="flex items-center justify-between text-[13px]">
-            <span className="text-muted-foreground">Total value</span>
+            <span className="text-muted-foreground">Typical cost to do it yourself</span>
             <span className="tabular-nums text-muted-foreground line-through decoration-white/40">
-              {usd(totalValue)}/mo
+              <AnimatedNumber value={totalValue} format={(n) => usd(n) + "/mo"} />
             </span>
           </div>
 
