@@ -11,6 +11,7 @@ export const site = {
   onboardingUrl: page("/onboarding"),
   loginUrl: page("/login"),
   dashboardUrl: page("/dashboard"),
+  ownerUrl: page("/owner"),
   termsUrl: page("/terms"),
   privacyUrl: page("/privacy"),
 };

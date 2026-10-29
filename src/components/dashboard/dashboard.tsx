@@ -650,6 +650,10 @@ function TopBar({ account }: { account: string | null }) {
     await signOut();
     window.location.href = site.homeUrl;
   };
+  const [owner, setOwner] = useState(false);
+  useEffect(() => {
+    if (account) authedFetch("/api/owner/me").then((r) => setOwner(r.ok)).catch(() => {});
+  }, [account]);
   return (
     <motion.header {...fade(0)} className="flex items-center justify-between gap-3 px-4 py-3 md:px-5">
       <span className="flex min-w-0 items-baseline gap-2">
@@ -657,6 +661,11 @@ function TopBar({ account }: { account: string | null }) {
         {account && <span className="hidden truncate text-[11px] text-muted-foreground sm:inline">{account}</span>}
       </span>
       <nav className="flex items-center gap-1">
+        {owner && (
+          <a href={site.ownerUrl} className={link}>
+            Owner suite
+          </a>
+        )}
         <a href="#settings" className={link}>
           <Settings className="size-3.5" /> Settings
         </a>

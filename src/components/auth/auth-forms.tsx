@@ -6,9 +6,17 @@ import { ArrowRight, Eye, EyeOff, Loader2, MailCheck } from "lucide-react";
 import { LogoMark } from "@/components/logo";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { authConfigured, currentEmail, onPasswordRecovery, resendConfirmation, sendPasswordReset, signIn, updatePassword } from "@/lib/auth";
+import { authConfigured, authedFetch, currentEmail, onPasswordRecovery, resendConfirmation, sendPasswordReset, signIn, updatePassword } from "@/lib/auth";
 import { page, site } from "@/lib/site";
 import { cn } from "@/lib/utils";
+
+// The owner lands in the owner suite; everyone else in their dashboard.
+async function afterLogin() {
+  try {
+    if ((await authedFetch("/api/owner/me")).ok) return site.ownerUrl;
+  } catch {}
+  return site.dashboardUrl;
+}
 
 const ease = [0.22, 1, 0.36, 1] as const;
 export const isEmail = (v: string) => /\S+@\S+\.\S+/.test(v);
@@ -129,7 +137,7 @@ export function LoginForm() {
     const message = linkError();
     if (message) setError(message);
     // Already signed in: go straight to the dashboard.
-    else if (authConfigured) currentEmail().then((e) => e && window.location.replace(site.dashboardUrl));
+    else if (authConfigured) currentEmail().then(async (e) => e && window.location.replace(await afterLogin()));
   }, []);
 
   const resend = async () => {
@@ -148,7 +156,7 @@ export function LoginForm() {
     setError(null);
     setResent("idle");
     const res = await signIn(email.trim(), password);
-    if (res.ok) window.location.href = site.dashboardUrl;
+    if (res.ok) window.location.href = await afterLogin();
     else {
       setError(res.error);
       setBusy(false);
@@ -299,7 +307,7 @@ export function ResetForm() {
     setBusy(true);
     setError(null);
     const res = await updatePassword(password, previewEmail);
-    if (res.ok) window.location.href = site.dashboardUrl;
+    if (res.ok) window.location.href = await afterLogin();
     else {
       setError(res.error);
       setBusy(false);
