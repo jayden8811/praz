@@ -435,7 +435,8 @@ function PlanAndBilling({ sub, onChanged }: { sub: Subscription | null | "loadin
 
   const current = plan?.volume ?? null;
   const picked = target ?? current ?? 2000;
-  const changing = !!plan && current !== null && picked !== current;
+  // A plan whose volume isn't recognized can still switch to any listed one.
+  const changing = !!plan && target !== null && picked !== current;
 
   // Price the change whenever a different volume is picked.
   useEffect(() => {
@@ -510,7 +511,7 @@ function PlanAndBilling({ sub, onChanged }: { sub: Subscription | null | "loadin
     }
   };
 
-  const upgrade = !!preview && current !== null && preview.volume > current;
+  const upgrade = !!preview && (current === null ? preview.dueNow > 0 : preview.volume > current);
 
   return (
     <section id="billing" className="scroll-mt-6">

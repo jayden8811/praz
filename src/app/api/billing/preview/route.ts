@@ -40,6 +40,8 @@ export async function POST(req: Request) {
     });
   } catch (err) {
     console.error("billing preview failed", err);
-    return NextResponse.json({ error: "Couldn't price that change. Please try again." }, { status: 500 });
+    const e = err as { type?: string; message?: string };
+    const detail = e.type?.startsWith("Stripe") && e.message ? ` (Stripe: ${e.message})` : "";
+    return NextResponse.json({ error: `Couldn't price that change.${detail}` }, { status: 500 });
   }
 }
