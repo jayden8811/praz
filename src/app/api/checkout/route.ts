@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server";
 import type Stripe from "stripe";
-import { pricing, stripeLookupKey, volumes } from "@/lib/site";
+import { volumes } from "@/lib/site";
 import { destination, type Setup } from "@/lib/setup";
 import { keyProblem, stripe } from "@/lib/stripe-server";
-import { findSubscription } from "@/lib/billing-server";
+import { findSubscription, planPriceId } from "@/lib/billing-server";
 
 // Creates an embedded Checkout Session for the plan chosen in onboarding,
 // and reports a session's status once the client says payment finished.
@@ -12,24 +12,8 @@ export const dynamic = "force-dynamic";
 // Stripe metadata values are capped at 500 characters.
 const clip = (s: string) => s.slice(0, 500);
 
-/**
- * The plan's price, found by lookup key so the same code works in any Stripe
- * account or mode. If that account has no such price yet, the price is defined
- * inline so checkout still works.
- */
 async function lineItem(volume: (typeof volumes)[number]): Promise<Stripe.Checkout.SessionCreateParams.LineItem> {
-  const found = await stripe().prices.list({ lookup_keys: [stripeLookupKey(volume)], active: true, limit: 1 });
-  if (found.data[0]) return { price: found.data[0].id, quantity: 1 };
-  console.warn(`stripe: no price with lookup key ${stripeLookupKey(volume)}; using an inline price`);
-  return {
-    quantity: 1,
-    price_data: {
-      currency: "usd",
-      unit_amount: pricing[volume] * 100,
-      recurring: { interval: "month" },
-      product_data: { name: `Praz Done-For-You Outbound · ${volume.toLocaleString("en-US")}/day` },
-    },
-  };
+  return { price: await planPriceId(volume), quantity: 1 };
 }
 
 export async function POST(req: Request) {

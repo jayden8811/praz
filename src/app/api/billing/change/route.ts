@@ -31,7 +31,7 @@ export async function POST(req: Request) {
     const item = sub.items.data[0];
 
     const updated = await stripe().subscriptions.update(sub.id, {
-      items: [{ id: item.id, ...(await itemPriceFor(volume, item)) }],
+      items: [{ id: item.id, ...(await itemPriceFor(volume)) }],
       proration_behavior: "always_invoice",
       // Keep the price shown in the preview.
       ...(prorationDate ? { proration_date: prorationDate } : {}),

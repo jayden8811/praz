@@ -40,19 +40,43 @@ export function volumeOf(sub: Stripe.Subscription): Volume | null {
   return byAmount ?? null;
 }
 
-/** The price to switch to: the plan's lookup-key price, or an inline price on the same product. */
-export async function itemPriceFor(volume: Volume, current: Stripe.SubscriptionItem) {
-  const found = await stripe().prices.list({ lookup_keys: [stripeLookupKey(volume)], active: true, limit: 1 });
-  if (found.data[0]) return { price: found.data[0].id };
-  const product = typeof current.price.product === "string" ? current.price.product : current.price.product.id;
-  return {
-    price_data: {
+/**
+ * The Stripe price ID for a plan, found by lookup key. If the account (sandbox or
+ * live) has no such price yet, or its amount no longer matches the site's pricing,
+ * it's created here with the lookup key, so a new account needs no manual setup.
+ */
+export async function planPriceId(volume: Volume): Promise<string> {
+  const key = stripeLookupKey(volume);
+  const find = async () => (await stripe().prices.list({ lookup_keys: [key], active: true, limit: 1 })).data[0];
+  const found = await find();
+  if (found && found.unit_amount === pricing[volume] * 100) return found.id;
+  try {
+    const price = await stripe().prices.create({
       currency: "usd",
-      product,
       unit_amount: pricing[volume] * 100,
-      recurring: { interval: "month" as const },
-    },
-  };
+      recurring: { interval: "month" },
+      lookup_key: key,
+      transfer_lookup_key: !!found,
+      nickname: `${volume.toLocaleString("en-US")} emails/day`,
+      metadata: { daily_volume: String(volume) },
+      product_data: {
+        name: `Praz Done-For-You Outbound · ${volume.toLocaleString("en-US")} emails/day`,
+        metadata: { praz: "1", daily_volume: String(volume) },
+      },
+    });
+    console.info(`stripe: created price ${price.id} for ${key}`);
+    return price.id;
+  } catch (err) {
+    // Another request created it first.
+    const again = await find();
+    if (again) return again.id;
+    throw err;
+  }
+}
+
+/** The price to switch a subscription item to. */
+export async function itemPriceFor(volume: Volume) {
+  return { price: await planPriceId(volume) };
 }
 
 export function summarize(sub: Stripe.Subscription) {

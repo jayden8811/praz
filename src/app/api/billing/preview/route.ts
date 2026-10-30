@@ -24,7 +24,7 @@ export async function POST(req: Request) {
       customer: typeof sub.customer === "string" ? sub.customer : sub.customer.id,
       subscription: sub.id,
       subscription_details: {
-        items: [{ id: item.id, ...(await itemPriceFor(volume, item)) }],
+        items: [{ id: item.id, ...(await itemPriceFor(volume)) }],
         proration_behavior: "always_invoice",
         proration_date: prorationDate,
       },

@@ -33,7 +33,7 @@ export const pricing: Record<(typeof volumes)[number], number> = {
 };
 
 // Each plan's Stripe price is found by this lookup key, so the same code works
-// with sandbox and live keys. Set the matching lookup key on each live price.
+// with sandbox and live keys. Missing prices are created on first use (billing-server.ts).
 export const stripeLookupKey = (volume: (typeof volumes)[number]) => `praz_dfy_${volume}`;
 
 export const formatVolume = (v: number) =>
