@@ -39,14 +39,28 @@ type Step = {
   step: number;
   format: (n: number) => string;
   unit: "count" | "pct" | "usd";
+  /** Benchmark steps explain an industry average instead of asking; it's still adjustable on the results screen. */
+  info?: (r: ReturnType<typeof compute>, v: Record<Key, number>) => { fact: string; yours: string };
 };
 
 const INPUTS: Step[] = [
   { key: "calls", label: "Inbound calls / month", question: "How many calls does your business get each month?", hint: "Every inbound call, answered or not.", min: 10, max: 2000, step: 10, format: int, unit: "count" },
-  { key: "unanswered", label: "Calls unanswered", question: "What share of those calls go unanswered?", hint: "Calls that ring out, hit voicemail or come in after hours. Most businesses miss 20–40%.", min: 0, max: 80, step: 1, format: pct, unit: "pct" },
-  { key: "opportunity", label: "Revenue opportunities", question: "How many of those missed callers were ready to buy?", hint: "Leave out spam, vendors and existing customers.", min: 0, max: 100, step: 1, format: pct, unit: "pct" },
-  { key: "booked", label: "Appointments booked", question: "How many buyers would book an appointment if you picked up?", hint: "Share of real opportunities that turn into a booked appointment.", min: 0, max: 100, step: 1, format: pct, unit: "pct" },
-  { key: "show", label: "Appointment show rate", question: "How many booked appointments actually show up?", hint: "Your typical show rate.", min: 0, max: 100, step: 1, format: pct, unit: "pct" },
+  {
+    key: "unanswered", label: "Calls unanswered", question: "Calls that go unanswered", hint: "Calls that ring out, hit voicemail or come in after hours.", min: 0, max: 80, step: 1, format: pct, unit: "pct",
+    info: (r, v) => ({ fact: "of calls to the average service business go unanswered: busy lines, after-hours calls and voicemail.", yours: `That's about ${int(r.unanswered)} of your ${int(v.calls)} calls every month.` }),
+  },
+  {
+    key: "opportunity", label: "Revenue opportunities", question: "Missed callers ready to buy", hint: "Leaving out spam, vendors and existing customers.", min: 0, max: 100, step: 1, format: pct, unit: "pct",
+    info: (r) => ({ fact: "of missed callers are new buyers on average, not spam, vendors or existing customers.", yours: `That's about ${int(r.opportunities)} buyers a month who called and never reached you.` }),
+  },
+  {
+    key: "booked", label: "Appointments booked", question: "Buyers who book when someone answers", hint: "Share of real opportunities that turn into a booked appointment.", min: 0, max: 100, step: 1, format: pct, unit: "pct",
+    info: (r) => ({ fact: "of buyers book an appointment on average when a real person answers right away.", yours: `That's about ${int(r.booked)} extra appointments on your calendar each month.` }),
+  },
+  {
+    key: "show", label: "Appointment show rate", question: "Appointments that show up", hint: "Typical show rate for booked appointments.", min: 0, max: 100, step: 1, format: pct, unit: "pct",
+    info: (r) => ({ fact: "of booked appointments show up on average.", yours: `That's about ${int(r.attended)} extra appointments you actually sit down for.` }),
+  },
   { key: "close", label: "Close rate", question: "How many attended appointments do you close?", hint: "Share that become paying jobs.", min: 0, max: 100, step: 1, format: pct, unit: "pct" },
   { key: "jobValue", label: "Average job value", question: "What's your average job worth?", hint: "Revenue from one closed job.", min: 500, max: 100000, step: 500, format: usd, unit: "usd" },
   { key: "margin", label: "Gross margin", question: "What's your gross margin on a job?", hint: "What you keep after materials and labor.", min: 5, max: 90, step: 1, format: pct, unit: "pct" },
@@ -152,7 +166,7 @@ function Calculator() {
             {done ? (
               <Results v={v} set={set} onRestart={() => { setV(DEFAULTS); go(0); }} onBack={() => go(INPUTS.length - 1)} />
             ) : (
-              <Question f={INPUTS[step]} value={v[INPUTS[step].key]} onChange={(n) => set(INPUTS[step].key, n)} onNext={() => go(step + 1)} onBack={step > 0 ? () => go(step - 1) : undefined} last={step === INPUTS.length - 1} />
+              <Question f={INPUTS[step]} v={v} value={v[INPUTS[step].key]} onChange={(n) => set(INPUTS[step].key, n)} onNext={() => go(step + 1)} onBack={step > 0 ? () => go(step - 1) : undefined} last={step === INPUTS.length - 1} />
             )}
           </motion.div>
         </AnimatePresence>
@@ -161,14 +175,15 @@ function Calculator() {
   );
 }
 
-function Question({ f, value, onChange, onNext, onBack, last }: { f: Step; value: number; onChange: (n: number) => void; onNext: () => void; onBack?: () => void; last: boolean }) {
+function Question({ f, v, value, onChange, onNext, onBack, last }: { f: Step; v: Record<Key, number>; value: number; onChange: (n: number) => void; onNext: () => void; onBack?: () => void; last: boolean }) {
   const [text, setText] = useState(String(value));
   const ref = useRef<HTMLInputElement>(null);
+  const next = useRef<HTMLButtonElement>(null);
   useEffect(() => setText(String(value)), [value]);
   useEffect(() => {
     // Focus without scrolling on touch screens, where the keyboard would cover the slider.
-    if (window.matchMedia("(pointer: fine)").matches) ref.current?.focus({ preventScroll: true });
-  }, []);
+    if (window.matchMedia("(pointer: fine)").matches) (f.info ? next : ref).current?.focus({ preventScroll: true });
+  }, [f.info]);
   const commit = () => {
     const n = Number(text.replace(/[^\d.]/g, ""));
     onChange(Number.isFinite(n) && text.trim() !== "" ? clampTyped(Math.round(n), f) : value);
@@ -182,6 +197,10 @@ function Question({ f, value, onChange, onNext, onBack, last }: { f: Step; value
         onNext();
       }}
     >
+      {f.info ? (
+        <Benchmark f={f} {...f.info(compute(v), v)} value={value} />
+      ) : (
+        <>
       <label htmlFor={`q-${f.key}`} className="block text-[15px] font-medium leading-snug tracking-[-0.01em]">
         {f.question}
       </label>
@@ -208,6 +227,9 @@ function Question({ f, value, onChange, onNext, onBack, last }: { f: Step; value
         <span>{f.format(f.max)}{f.unit === "count" || f.unit === "usd" ? "+" : ""}</span>
       </div>
 
+        </>
+      )}
+
       <div className="mt-6 flex items-center justify-between">
         {onBack ? (
           <button type="button" onClick={onBack} className="flex items-center gap-1 rounded-md px-2 py-1.5 text-[12px] text-white/70 transition-colors hover:bg-white/[0.05] hover:text-white cursor-pointer">
@@ -216,11 +238,26 @@ function Question({ f, value, onChange, onNext, onBack, last }: { f: Step; value
         ) : (
           <span className="text-[11px] text-muted-foreground">Press Enter to continue</span>
         )}
-        <button type="submit" className="flex h-9 items-center gap-1.5 rounded-md bg-white px-4 text-[12px] font-medium text-zinc-950 transition-colors hover:bg-white/90 cursor-pointer">
+        <button ref={next} type="submit" className="flex h-9 items-center gap-1.5 rounded-md bg-white px-4 text-[12px] font-medium text-zinc-950 transition-colors hover:bg-white/90 cursor-pointer">
           {last ? "See my results" : "Next"} <ArrowRight className="size-3.5" />
         </button>
       </div>
     </form>
+  );
+}
+
+function Benchmark({ f, fact, yours, value }: { f: Step; fact: string; yours: string; value: number }) {
+  return (
+    <div>
+      <p className="text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground">Based on industry averages</p>
+      <p className="mt-1 text-[15px] font-medium leading-snug tracking-[-0.01em]">{f.question}</p>
+      <div className="mt-5 flex items-baseline justify-center">
+        <span className="text-[44px] font-semibold tracking-tight tabular-nums text-yellow-200">{value}</span>
+        <span className="ml-0.5 text-[22px] text-yellow-200/70">%</span>
+      </div>
+      <p className="mx-auto mt-1 max-w-sm text-center text-[13px] leading-relaxed text-white/80">{fact}</p>
+      <p className="glass-inset mt-5 rounded-lg px-3.5 py-2.5 text-center text-[12px] text-white/90">{yours}</p>
+    </div>
   );
 }
 
