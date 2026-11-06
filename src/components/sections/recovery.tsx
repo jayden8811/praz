@@ -1,8 +1,8 @@
 "use client";
 
-import { useState } from "react";
-import { motion } from "motion/react";
-import { CalendarDays, MessageCircle, RotateCcw } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { AnimatePresence, motion } from "motion/react";
+import { ArrowLeft, ArrowRight, CalendarDays, MessageCircle, RotateCcw, SlidersHorizontal } from "lucide-react";
 import { LogoMark } from "@/components/logo";
 import { AnimatedNumber } from "@/components/animated-number";
 import { Separator } from "@/components/ui/separator";
@@ -29,15 +29,27 @@ const DEFAULTS: Record<Key, number> = {
   margin: 35,
 };
 
-const INPUTS: { key: Key; label: string; hint: string; min: number; max: number; step: number; format: (n: number) => string }[] = [
-  { key: "calls", label: "Inbound calls / month", hint: "Every call your business gets in a month.", min: 10, max: 2000, step: 10, format: int },
-  { key: "unanswered", label: "Calls unanswered", hint: "Share of calls that ring out, hit voicemail or come in after hours.", min: 0, max: 80, step: 1, format: pct },
-  { key: "opportunity", label: "Revenue opportunities", hint: "Share of missed callers who wanted to buy, not spam or existing customers.", min: 0, max: 100, step: 1, format: pct },
-  { key: "booked", label: "Appointments booked", hint: "Share of those opportunities that turn into a booked appointment.", min: 0, max: 100, step: 1, format: pct },
-  { key: "show", label: "Appointment show rate", hint: "Share of booked appointments that actually happen.", min: 0, max: 100, step: 1, format: pct },
-  { key: "close", label: "Close rate", hint: "Share of attended appointments that become paying jobs.", min: 0, max: 100, step: 1, format: pct },
-  { key: "jobValue", label: "Average job value", hint: "Revenue from one closed job.", min: 500, max: 100000, step: 500, format: usd },
-  { key: "margin", label: "Gross margin", hint: "What you keep from a job after materials and labor.", min: 5, max: 90, step: 1, format: pct },
+type Step = {
+  key: Key;
+  label: string;
+  question: string;
+  hint: string;
+  min: number;
+  max: number;
+  step: number;
+  format: (n: number) => string;
+  unit: "count" | "pct" | "usd";
+};
+
+const INPUTS: Step[] = [
+  { key: "calls", label: "Inbound calls / month", question: "How many calls does your business get each month?", hint: "Every inbound call, answered or not.", min: 10, max: 2000, step: 10, format: int, unit: "count" },
+  { key: "unanswered", label: "Calls unanswered", question: "What share of those calls go unanswered?", hint: "Calls that ring out, hit voicemail or come in after hours. Most businesses miss 20–40%.", min: 0, max: 80, step: 1, format: pct, unit: "pct" },
+  { key: "opportunity", label: "Revenue opportunities", question: "How many of those missed callers were ready to buy?", hint: "Leave out spam, vendors and existing customers.", min: 0, max: 100, step: 1, format: pct, unit: "pct" },
+  { key: "booked", label: "Appointments booked", question: "How many buyers would book an appointment if you picked up?", hint: "Share of real opportunities that turn into a booked appointment.", min: 0, max: 100, step: 1, format: pct, unit: "pct" },
+  { key: "show", label: "Appointment show rate", question: "How many booked appointments actually show up?", hint: "Your typical show rate.", min: 0, max: 100, step: 1, format: pct, unit: "pct" },
+  { key: "close", label: "Close rate", question: "How many attended appointments do you close?", hint: "Share that become paying jobs.", min: 0, max: 100, step: 1, format: pct, unit: "pct" },
+  { key: "jobValue", label: "Average job value", question: "What's your average job worth?", hint: "Revenue from one closed job.", min: 500, max: 100000, step: 500, format: usd, unit: "usd" },
+  { key: "margin", label: "Gross margin", question: "What's your gross margin on a job?", hint: "What you keep after materials and labor.", min: 5, max: 90, step: 1, format: pct, unit: "pct" },
 ];
 
 // Our fee: 30% of the projected extra gross profit, rounded to the nearest $250.
@@ -79,10 +91,7 @@ function Header() {
   );
 }
 
-function Calculator() {
-  const [v, setV] = useState(DEFAULTS);
-  const changed = (Object.keys(DEFAULTS) as Key[]).some((k) => v[k] !== DEFAULTS[k]);
-
+function compute(v: Record<Key, number>) {
   const unanswered = v.calls * (v.unanswered / 100);
   const opportunities = unanswered * (v.opportunity / 100);
   const booked = opportunities * (v.booked / 100);
@@ -91,92 +100,207 @@ function Calculator() {
   const revenue = closed * v.jobValue;
   const profit = revenue * (v.margin / 100);
   const fee = Math.max(0, Math.round((profit * FEE_SHARE) / FEE_ROUND) * FEE_ROUND);
-  const net = profit - fee;
+  return { unanswered, opportunities, booked, attended, closed, revenue, profit, fee, net: profit - fee };
+}
+
+const clamp = (n: number, f: Step) => Math.min(f.max, Math.max(f.min, n));
+// Typed counts and dollar amounts may go past the slider's end; percentages stop at its max.
+const clampTyped = (n: number, f: Step) => (f.unit === "pct" ? clamp(n, f) : Math.max(f.min, n));
+
+function Calculator() {
+  const [v, setV] = useState(DEFAULTS);
+  const [step, setStep] = useState(0);
+  const [dir, setDir] = useState(1);
+  const done = step >= INPUTS.length;
+  const go = (n: number) => {
+    setDir(n > step ? 1 : -1);
+    setStep(n);
+  };
+  const set = (k: Key, n: number) => setV((s) => ({ ...s, [k]: n }));
 
   return (
-    <motion.div {...fade(0.26)} id="calculator" className="mt-10">
+    <motion.div {...fade(0.26)} id="calculator" className="mx-auto mt-10 w-full max-w-[520px]">
       <div className="flex items-center justify-between px-1">
-        <h2 className="text-[13px] font-medium">Revenue recovery calculator</h2>
-        <button
-          onClick={() => setV(DEFAULTS)}
-          disabled={!changed}
-          className="flex items-center gap-1.5 rounded-md px-2 py-1 text-[11px] text-white/70 transition-colors hover:bg-white/[0.05] hover:text-white disabled:pointer-events-none disabled:opacity-40 cursor-pointer"
-        >
-          <RotateCcw className="size-3" /> Reset
+        <h2 className="text-[13px] font-medium">{done ? "Your recovered revenue" : "Revenue recovery calculator"}</h2>
+        <span className="text-[11px] tabular-nums text-muted-foreground">{done ? "Every month" : `${step + 1} of ${INPUTS.length}`}</span>
+      </div>
+      {/* progress */}
+      <div className="mt-2 flex gap-1 px-1" aria-hidden>
+        {INPUTS.map((f, i) => (
+          <button
+            key={f.key}
+            tabIndex={-1}
+            onClick={() => (i < step || done) && go(i)}
+            className={cn(
+              "h-1 flex-1 rounded-full transition-colors duration-300",
+              i < step || done ? "bg-yellow-300/80 cursor-pointer" : i === step ? "bg-yellow-300/40" : "bg-white/10"
+            )}
+          />
+        ))}
+      </div>
+
+      <div className="glass relative mt-3 overflow-hidden rounded-xl">
+        <AnimatePresence mode="wait" initial={false} custom={dir}>
+          <motion.div
+            key={done ? "results" : INPUTS[step].key}
+            custom={dir}
+            initial={{ opacity: 0, x: 24 * dir, filter: "blur(4px)" }}
+            animate={{ opacity: 1, x: 0, filter: "blur(0px)" }}
+            exit={{ opacity: 0, x: -24 * dir, filter: "blur(4px)" }}
+            transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
+          >
+            {done ? (
+              <Results v={v} set={set} onRestart={() => { setV(DEFAULTS); go(0); }} onBack={() => go(INPUTS.length - 1)} />
+            ) : (
+              <Question f={INPUTS[step]} value={v[INPUTS[step].key]} onChange={(n) => set(INPUTS[step].key, n)} onNext={() => go(step + 1)} onBack={step > 0 ? () => go(step - 1) : undefined} last={step === INPUTS.length - 1} />
+            )}
+          </motion.div>
+        </AnimatePresence>
+      </div>
+    </motion.div>
+  );
+}
+
+function Question({ f, value, onChange, onNext, onBack, last }: { f: Step; value: number; onChange: (n: number) => void; onNext: () => void; onBack?: () => void; last: boolean }) {
+  const [text, setText] = useState(String(value));
+  const ref = useRef<HTMLInputElement>(null);
+  useEffect(() => setText(String(value)), [value]);
+  useEffect(() => {
+    // Focus without scrolling on touch screens, where the keyboard would cover the slider.
+    if (window.matchMedia("(pointer: fine)").matches) ref.current?.focus({ preventScroll: true });
+  }, []);
+  const commit = () => {
+    const n = Number(text.replace(/[^\d.]/g, ""));
+    onChange(Number.isFinite(n) && text.trim() !== "" ? clampTyped(Math.round(n), f) : value);
+  };
+  return (
+    <form
+      className="p-5 sm:p-6"
+      onSubmit={(e) => {
+        e.preventDefault();
+        commit();
+        onNext();
+      }}
+    >
+      <label htmlFor={`q-${f.key}`} className="block text-[15px] font-medium leading-snug tracking-[-0.01em]">
+        {f.question}
+      </label>
+      <p className="mt-1 text-[12px] text-muted-foreground">{f.hint}</p>
+
+      <div className="mt-6 flex items-baseline justify-center gap-1">
+        {f.unit === "usd" && <span className="text-[22px] text-muted-foreground">$</span>}
+        <input
+          ref={ref}
+          id={`q-${f.key}`}
+          inputMode="numeric"
+          value={f.unit === "count" || f.unit === "usd" ? (Number(text) ? Number(text).toLocaleString("en-US") : text) : text}
+          onChange={(e) => setText(e.target.value.replace(/[^\d]/g, ""))}
+          onBlur={commit}
+          style={{ width: `${Math.max(2, (Number(text) ? Number(text).toLocaleString("en-US") : text).length) + 0.5}ch` }}
+          className="bg-transparent text-center text-[36px] font-semibold tabular-nums tracking-tight outline-none"
+        />
+        {f.unit === "pct" && <span className="text-[22px] text-muted-foreground">%</span>}
+      </div>
+
+      <Slider className="mt-4" aria-label={f.label} value={[clamp(value, f)]} min={f.min} max={f.max} step={f.step} onValueChange={([n]) => onChange(n)} />
+      <div className="mt-1.5 flex justify-between text-[10px] text-muted-foreground">
+        <span>{f.format(f.min)}</span>
+        <span>{f.format(f.max)}{f.unit === "count" || f.unit === "usd" ? "+" : ""}</span>
+      </div>
+
+      <div className="mt-6 flex items-center justify-between">
+        {onBack ? (
+          <button type="button" onClick={onBack} className="flex items-center gap-1 rounded-md px-2 py-1.5 text-[12px] text-white/70 transition-colors hover:bg-white/[0.05] hover:text-white cursor-pointer">
+            <ArrowLeft className="size-3.5" /> Back
+          </button>
+        ) : (
+          <span className="text-[11px] text-muted-foreground">Press Enter to continue</span>
+        )}
+        <button type="submit" className="flex h-9 items-center gap-1.5 rounded-md bg-white px-4 text-[12px] font-medium text-zinc-950 transition-colors hover:bg-white/90 cursor-pointer">
+          {last ? "See my results" : "Next"} <ArrowRight className="size-3.5" />
+        </button>
+      </div>
+    </form>
+  );
+}
+
+function Results({ v, set, onRestart, onBack }: { v: Record<Key, number>; set: (k: Key, n: number) => void; onRestart: () => void; onBack: () => void }) {
+  const r = compute(v);
+  const [adjust, setAdjust] = useState(false);
+  return (
+    <div className="p-5 sm:p-6">
+      <div className="text-center">
+        <p className="text-[12px] text-muted-foreground">Extra gross profit from calls you&apos;re missing</p>
+        <AnimatedNumber value={r.profit} format={(n) => usd(n) + "/mo"} className="mt-1 block text-[34px] font-semibold tracking-tight tabular-nums text-yellow-200" />
+        <p className="mt-0.5 text-[12px] text-muted-foreground">
+          on <AnimatedNumber value={r.revenue} format={usd} className="text-white/85 tabular-nums" /> of additional revenue
+        </p>
+      </div>
+
+      <dl className="glass-inset mt-5 space-y-2 rounded-lg px-3.5 py-3 text-[12px]">
+        <Row label="Unanswered calls" value={r.unanswered} />
+        <Row label="Revenue opportunities" value={r.opportunities} />
+        <Row label="Booked appointments" value={r.booked} />
+        <Row label="Attended appointments" value={r.attended} />
+        <Row label="Additional closed deals" value={r.closed} decimals />
+      </dl>
+
+      <div className="mt-3 rounded-lg border border-yellow-300/20 bg-yellow-300/[0.04] px-3.5 py-3">
+        <div className="flex items-baseline justify-between">
+          <span className="text-[13px] font-medium">Your price</span>
+          <span className="text-[20px] font-semibold tracking-tight tabular-nums">
+            <AnimatedNumber value={r.fee} format={usd} />
+            <span className="ml-0.5 text-[11px] font-normal text-muted-foreground">/mo</span>
+          </span>
+        </div>
+        <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">30% of the projected extra gross profit, rounded to the nearest $250.</p>
+        <Separator className="my-2.5 bg-white/[0.06]" />
+        <div className="flex items-center justify-between text-[12px]">
+          <span className="text-muted-foreground">You keep</span>
+          <AnimatedNumber value={r.net} format={(n) => usd(n) + "/mo"} className="font-medium tabular-nums text-yellow-100" />
+        </div>
+      </div>
+
+      <a href={site.bookUrl} className="mt-4 flex h-10 items-center justify-center gap-1.5 rounded-md bg-white text-[13px] font-medium text-zinc-950 transition-colors hover:bg-white/90">
+        <CalendarDays className="size-3.5" /> Book a call to recover it
+      </a>
+
+      <div className="mt-3 flex items-center justify-center gap-1 text-[12px]">
+        <button onClick={() => setAdjust((a) => !a)} className="flex items-center gap-1.5 rounded-md px-2 py-1 text-white/70 transition-colors hover:bg-white/[0.05] hover:text-white cursor-pointer">
+          <SlidersHorizontal className="size-3.5" /> {adjust ? "Hide numbers" : "Adjust numbers"}
+        </button>
+        <button onClick={onBack} className="flex items-center gap-1.5 rounded-md px-2 py-1 text-white/70 transition-colors hover:bg-white/[0.05] hover:text-white cursor-pointer">
+          <ArrowLeft className="size-3.5" /> Back
+        </button>
+        <button onClick={onRestart} className="flex items-center gap-1.5 rounded-md px-2 py-1 text-white/70 transition-colors hover:bg-white/[0.05] hover:text-white cursor-pointer">
+          <RotateCcw className="size-3" /> Start over
         </button>
       </div>
 
-      <div className="glass mt-3 grid overflow-hidden rounded-xl md:grid-cols-[1.1fr_1fr]">
-        {/* inputs */}
-        <div className="space-y-4 p-5">
-          <p className="text-[12px] font-medium text-white/90">Your numbers</p>
-          {INPUTS.map((f) => (
-            <Field key={f.key} label={f.label} hint={f.hint} value={<span className="tabular-nums">{f.format(v[f.key])}</span>}>
-              <Slider
-                aria-label={f.label}
-                value={[v[f.key]]}
-                min={f.min}
-                max={f.max}
-                step={f.step}
-                onValueChange={([n]) => setV((s) => ({ ...s, [f.key]: n }))}
-              />
-            </Field>
-          ))}
-        </div>
-
-        {/* results */}
-        <div className="flex flex-col border-t border-white/[0.06] bg-white/[0.015] p-5 md:border-l md:border-t-0">
-          <p className="text-[12px] font-medium text-white/90">Every month</p>
-          <dl className="mt-3 space-y-2.5 text-[12px]">
-            <Row label="Unanswered calls" value={unanswered} />
-            <Row label="Revenue opportunities" value={opportunities} />
-            <Row label="Booked appointments" value={booked} />
-            <Row label="Attended appointments" value={attended} />
-            <Row label="Additional closed deals" value={closed} decimals />
-          </dl>
-
-          <Separator className="my-4 bg-white/[0.06]" />
-
-          <dl className="space-y-2 text-[13px]">
-            <div className="flex items-center justify-between">
-              <dt className="text-white/85">Additional revenue</dt>
-              <AnimatedNumber value={revenue} format={usd} className="font-semibold tabular-nums" />
-            </div>
-            <div className="flex items-center justify-between">
-              <dt className="text-white/85">Additional gross profit</dt>
-              <AnimatedNumber value={profit} format={usd} className="font-semibold tabular-nums text-yellow-200" />
-            </div>
-          </dl>
-
-          <div className="glass-inset mt-4 rounded-lg px-3.5 py-3">
-            <div className="flex items-baseline justify-between">
-              <span className="text-[13px] font-medium">Your price</span>
-              <span className="text-[20px] font-semibold tracking-tight tabular-nums">
-                <AnimatedNumber value={fee} format={usd} />
-                <span className="ml-0.5 text-[11px] font-normal text-muted-foreground">/mo</span>
-              </span>
-            </div>
-            <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">
-              30% of the projected extra gross profit, rounded to the nearest $250.
-            </p>
-            <div className="mt-2.5 flex items-center justify-between border-t border-white/[0.06] pt-2.5 text-[12px]">
-              <span className="text-muted-foreground">You keep</span>
-              <AnimatedNumber value={net} format={(n) => usd(n) + "/mo"} className={cn("font-medium tabular-nums", net > 0 && "text-yellow-100")} />
-            </div>
-          </div>
-
-          <a
-            href={site.bookUrl}
-            className="mt-4 flex h-9 items-center justify-center gap-1.5 rounded-md bg-white text-[12px] font-medium text-zinc-950 transition-colors hover:bg-white/90"
+      <AnimatePresence initial={false}>
+        {adjust && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: "auto", opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
+            className="overflow-hidden"
           >
-            <CalendarDays className="size-3.5" /> Book a call
-          </a>
-          <p className="mt-auto pt-4 text-[10px] leading-relaxed text-muted-foreground">
-            Illustrative estimates, not guaranteed results. Assumes missed opportunities can be recovered and are incremental.
-          </p>
-        </div>
-      </div>
-    </motion.div>
+            <div className="space-y-4 pt-5">
+              {INPUTS.map((f) => (
+                <Field key={f.key} label={f.label} hint={f.hint} value={<span className="tabular-nums">{f.format(v[f.key])}</span>}>
+                  <Slider aria-label={f.label} value={[clamp(v[f.key], f)]} min={f.min} max={f.max} step={f.step} onValueChange={([n]) => set(f.key, n)} />
+                </Field>
+              ))}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <p className="mt-5 text-center text-[10px] leading-relaxed text-muted-foreground">
+        Illustrative estimates, not guaranteed results. Assumes missed opportunities can be recovered and are incremental.
+      </p>
+    </div>
   );
 }
 
