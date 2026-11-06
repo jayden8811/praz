@@ -24,7 +24,7 @@ const DEFAULTS: Record<Key, number> = {
   opportunity: 38,
   booked: 45,
   show: 85,
-  close: 30,
+  close: 35,
   jobValue: 15000,
   margin: 35,
 };
