@@ -22,8 +22,8 @@ const DEFAULTS: Record<Key, number> = {
   calls: 200,
   unanswered: 27,
   opportunity: 38,
-  booked: 50,
-  show: 70,
+  booked: 45,
+  show: 85,
   close: 30,
   jobValue: 15000,
   margin: 35,
@@ -41,6 +41,8 @@ type Step = {
   unit: "count" | "pct" | "usd";
   /** Benchmark steps explain an industry average instead of asking; it's still adjustable on the results screen. */
   info?: (r: ReturnType<typeof compute>, v: Record<Key, number>) => { fact: string; yours: string };
+  /** Small label above a benchmark step. */
+  basis?: string;
 };
 
 const INPUTS: Step[] = [
@@ -54,14 +56,16 @@ const INPUTS: Step[] = [
     info: (r) => ({ fact: "of missed callers are new buyers on average, not spam, vendors or existing customers.", yours: `That's about ${int(r.opportunities)} buyers a month who called and never reached you.` }),
   },
   {
-    key: "booked", label: "Appointments booked", question: "Buyers who book when someone answers", hint: "Share of real opportunities that turn into a booked appointment.", min: 0, max: 100, step: 1, format: pct, unit: "pct",
-    info: (r) => ({ fact: "of buyers book an appointment on average when a real person answers right away.", yours: `That's about ${int(r.booked)} extra appointments on your calendar each month.` }),
+    key: "booked", label: "Estimate booking rate", question: "Callers who book an estimate", hint: "Share of buyers who book an estimate when their call is answered.", min: 0, max: 100, step: 1, format: pct, unit: "pct",
+    basis: "Invoca home-services benchmark",
+    info: (r) => ({ fact: "of home-services phone leads book an estimate, based on Invoca's phone-lead conversion benchmark.", yours: `That's about ${int(r.booked)} extra estimates booked each month.` }),
   },
   {
-    key: "show", label: "Appointment show rate", question: "Appointments that show up", hint: "Typical show rate for booked appointments.", min: 0, max: 100, step: 1, format: pct, unit: "pct",
-    info: (r) => ({ fact: "of booked appointments show up on average.", yours: `That's about ${int(r.attended)} extra appointments you actually sit down for.` }),
+    key: "show", label: "Estimate completion rate", question: "Booked estimates that get completed", hint: "Share of booked estimates that actually happen.", min: 0, max: 100, step: 1, format: pct, unit: "pct",
+    basis: "Conservative estimate",
+    info: (r) => ({ fact: "of booked estimates get completed. This is a conservative planning assumption, since reliable home-services data is limited.", yours: `That's about ${int(r.attended)} extra estimates completed each month.` }),
   },
-  { key: "close", label: "Close rate", question: "How many attended appointments do you close?", hint: "Share that become paying jobs.", min: 0, max: 100, step: 1, format: pct, unit: "pct" },
+  { key: "close", label: "Close rate", question: "How many completed estimates do you close?", hint: "Share of estimates that become paid jobs.", min: 0, max: 100, step: 1, format: pct, unit: "pct" },
   { key: "jobValue", label: "Average job value", question: "What's your average job worth?", hint: "Revenue from one closed job.", min: 500, max: 100000, step: 500, format: usd, unit: "usd" },
   { key: "margin", label: "Gross margin", question: "What's your gross margin on a job?", hint: "What you keep after materials and labor.", min: 5, max: 90, step: 1, format: pct, unit: "pct" },
 ];
@@ -198,7 +202,7 @@ function Question({ f, v, value, onChange, onNext, onBack, last }: { f: Step; v:
       }}
     >
       {f.info ? (
-        <Benchmark f={f} {...f.info(compute(v), v)} value={value} />
+        <Benchmark f={f} {...f.info(compute(v), v)} value={value} basis={f.basis ?? "Based on industry averages"} />
       ) : (
         <>
       <label htmlFor={`q-${f.key}`} className="block text-[15px] font-medium leading-snug tracking-[-0.01em]">
@@ -246,10 +250,10 @@ function Question({ f, v, value, onChange, onNext, onBack, last }: { f: Step; v:
   );
 }
 
-function Benchmark({ f, fact, yours, value }: { f: Step; fact: string; yours: string; value: number }) {
+function Benchmark({ f, fact, yours, value, basis }: { f: Step; fact: string; yours: string; value: number; basis: string }) {
   return (
     <div>
-      <p className="text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground">Based on industry averages</p>
+      <p className="text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground">{basis}</p>
       <p className="mt-1 text-[15px] font-medium leading-snug tracking-[-0.01em]">{f.question}</p>
       <div className="mt-5 flex items-baseline justify-center">
         <span className="text-[44px] font-semibold tracking-tight tabular-nums text-yellow-200">{value}</span>
@@ -277,9 +281,9 @@ function Results({ v, set, onRestart, onBack }: { v: Record<Key, number>; set: (
       <dl className="glass-inset mt-5 space-y-2 rounded-lg px-3.5 py-3 text-[12px]">
         <Row label="Unanswered calls" value={r.unanswered} />
         <Row label="Revenue opportunities" value={r.opportunities} />
-        <Row label="Booked appointments" value={r.booked} />
-        <Row label="Attended appointments" value={r.attended} />
-        <Row label="Additional closed deals" value={r.closed} decimals />
+        <Row label="Estimates booked" value={r.booked} />
+        <Row label="Estimates completed" value={r.attended} />
+        <Row label="Additional jobs closed" value={r.closed} decimals />
       </dl>
 
       <div className="mt-3 rounded-lg border border-yellow-300/20 bg-yellow-300/[0.04] px-3.5 py-3">
