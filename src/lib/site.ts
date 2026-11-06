@@ -8,6 +8,7 @@ export const site = {
   name: "Praz",
   bookUrl: page("/book"),
   homeUrl: page("/"),
+  outboundUrl: page("/outbound"),
   onboardingUrl: page("/onboarding"),
   loginUrl: page("/login"),
   dashboardUrl: page("/dashboard"),

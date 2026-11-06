@@ -9,6 +9,7 @@ import {
   LayoutDashboard,
   Lock,
   MessageCircle,
+  Send,
   Tag,
 } from "lucide-react";
 import { LogoMark } from "@/components/logo";
@@ -22,7 +23,7 @@ import { authConfigured, currentEmail } from "@/lib/auth";
 import { cn } from "@/lib/utils";
 
 const ease = [0.22, 1, 0.36, 1] as const;
-const fade = (delay: number) => ({
+export const fade = (delay: number) => ({
   initial: { opacity: 0, y: 8, filter: "blur(6px)" },
   animate: { opacity: 1, y: 0, filter: "blur(0px)" },
   transition: { duration: 0.7, delay, ease },
@@ -65,21 +66,25 @@ export function Overview() {
   );
 }
 
-function TopBar() {
+export function TopBar({ home = false }: { home?: boolean }) {
   const [signedIn, setSignedIn] = useState(false);
   useEffect(() => {
     if (authConfigured) currentEmail().then((e) => setSignedIn(!!e));
   }, []);
   const items = [
-    { href: site.onboardingUrl, label: "Start now", icon: ArrowUpRight, mobile: false },
-    { href: "#pricing", label: "Pricing", icon: Tag, mobile: false },
+    home
+      ? { href: site.outboundUrl, label: "Outbound", icon: Send, mobile: false }
+      : { href: site.onboardingUrl, label: "Start now", icon: ArrowUpRight, mobile: false },
+    home
+      ? { href: site.onboardingUrl, label: "Start now", icon: ArrowUpRight, mobile: false }
+      : { href: "#pricing", label: "Pricing", icon: Tag, mobile: false },
     signedIn
       ? { href: site.dashboardUrl, label: "Dashboard", icon: LayoutDashboard, mobile: true }
       : { href: site.loginUrl, label: "Log in", icon: Lock, mobile: true },
   ];
   return (
     <motion.header {...fade(0)} className="flex items-center justify-between px-4 py-3 md:px-5">
-      <span className="text-[13px] font-medium text-white/90">Praz</span>
+      <a href={site.homeUrl} className="text-[13px] font-medium text-white/90 hover:text-white">Praz</a>
       <nav className="flex items-center gap-0.5">
         <a
           href={site.bookUrl}
@@ -335,7 +340,7 @@ function Calculator() {
   );
 }
 
-function Field({
+export function Field({
   label,
   hint,
   value,
