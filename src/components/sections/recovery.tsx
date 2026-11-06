@@ -69,11 +69,11 @@ function Header() {
       <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} transition={{ duration: 0.8, ease: [0.22, 1, 0.36, 1] }}>
         <LogoMark className="size-14 text-white" />
       </motion.div>
-      <motion.h1 {...fade(0.1)} className="mt-5 text-[22px] font-medium tracking-[-0.02em] md:text-[24px]">
-        Every <span className="rounded-[0.25em] bg-yellow-300/20 px-[0.2em]">missed call</span> is a lost job
+      <motion.h1 {...fade(0.1)} className="mt-5 max-w-xl text-balance text-[22px] font-medium tracking-[-0.02em] md:text-[24px]">
+        We turn your <span className="rounded-[0.25em] bg-yellow-300/20 px-[0.2em]">missed calls</span> into booked jobs and additional profit
       </motion.h1>
       <motion.p {...fade(0.18)} className="mt-2 max-w-md text-[13px] leading-relaxed text-muted-foreground">
-        See what answering them is worth. You only pay a share of the profit we recover.
+        (and only take a % of the additional profit we bring)
       </motion.p>
     </div>
   );
